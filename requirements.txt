@@ -1,0 +1,6 @@
+oandapyV20>=0.7.2
+pandas>=2.0.0
+python-dotenv>=1.0      # charge .env en dev local (sans effet en prod)
+# Couche news (optionnel, requis seulement pour les sources live) :
+feedparser>=6.0         # flux RSS des médias / orgs officielles
+requests>=2.28          # API Bluesky publique, calendrier économique, Frankfurter
