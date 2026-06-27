@@ -1,0 +1,14 @@
+[Unit]
+Description=Agent Forex API (lecture seule)
+After=network.target
+
+[Service]
+User=forex
+WorkingDirectory=/home/forex/agent-forex
+EnvironmentFile=/home/forex/agent-forex/.env
+ExecStart=/home/forex/agent-forex/venv/bin/uvicorn api:app --host 127.0.0.1 --port 8001
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
