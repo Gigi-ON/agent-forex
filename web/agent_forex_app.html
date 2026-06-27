@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Forex — Application</title>
+<style>
+  :root{
+    --bg:#EEF0F4;--card:#fff;--ink:#171A21;--muted:#8B90A0;--faint:#B9BEC9;
+    --line:#EAECF1;--blue:#2F6BFF;--blue-soft:#EAF0FF;--green:#15A971;--green-soft:#E7F7F0;
+    --coral:#EE5A42;--coral-soft:#FDECE8;--amber:#E0902F;--amber-soft:#FBF0E0;
+    --shadow:0 1px 2px rgba(20,24,33,.04),0 8px 24px rgba(20,24,33,.05);--radius:16px;
+  }
+  [data-theme="dark"]{
+    --bg:#0D1015;--card:#161A22;--ink:#EDEFF3;--muted:#8A91A1;--faint:#5A6172;
+    --line:#242A36;--blue:#4C82FF;--blue-soft:#16233E;--green:#27C28A;--green-soft:#10271F;
+    --coral:#F0654C;--coral-soft:#2A1712;--amber:#E8A24A;--amber-soft:#2A2010;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.45;font-size:14px;-webkit-font-smoothing:antialiased}
+  .app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
+  .menuBtn{display:none;border:1px solid var(--line);background:var(--card);color:var(--ink);
+    width:42px;height:42px;border-radius:11px;font-size:18px;cursor:pointer;align-items:center;justify-content:center;flex:0 0 auto}
+  .scrim{display:none;position:fixed;inset:0;background:rgba(10,14,20,.45);z-index:35}.scrim.show{display:block}
+  .side{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--bg);padding:24px 16px;
+    display:flex;flex-direction:column;gap:4px;z-index:40}
+  .brand{display:flex;align-items:center;gap:10px;padding:6px 10px 18px}
+  .brand .logo{width:30px;height:30px;border-radius:9px;background:var(--blue);display:grid;place-items:center;color:#fff;font-weight:700}
+  .brand b{font-size:17px;letter-spacing:-.2px}
+  .navlabel{font-size:11px;letter-spacing:.08em;color:var(--faint);text-transform:uppercase;padding:14px 12px 6px;font-weight:600}
+  .nav{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;color:var(--muted);
+    cursor:pointer;font-weight:500;transition:.15s}
+  .nav:hover{background:var(--line);color:var(--ink)}
+  .nav.active{background:var(--blue);color:#fff}
+  .acct{margin-top:auto;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px}
+  .acct .r{display:flex;justify-content:space-between;font-size:13px;padding:4px 0}.acct .r span{color:var(--muted)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}
+  .main{padding:22px 26px 40px;display:flex;flex-direction:column;gap:16px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .top h1{font-size:21px;letter-spacing:-.4px}.top .sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;font-weight:600;font-size:12px}
+  .badge.practice{background:var(--amber-soft);color:var(--amber)}.badge.lock{background:var(--blue-soft);color:var(--blue)}
+  .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 13px;border-radius:11px;
+    font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-family:inherit;transition:.15s}
+  .btn:hover{border-color:var(--faint)}.btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .btn.green{background:var(--green);color:#fff;border-color:var(--green)}.btn.red{background:var(--coral);color:#fff;border-color:var(--coral)}
+  .btn.ghost{background:transparent}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+  h3{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}.cap{font-size:12px;color:var(--muted)}
+  .grid{display:grid;gap:16px}.r2{grid-template-columns:1.2fr minmax(0,1fr)}
+  .kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .stat{display:flex;gap:22px}.stat .v{font-size:19px;font-weight:800;letter-spacing:-.4px}.stat .k{font-size:11.5px;color:var(--muted)}
+  .kpi .lab{font-size:12px;color:var(--muted)}.kpi .num{font-size:19px;font-weight:700;margin-top:7px;letter-spacing:-.3px}
+  .limit{border:1px solid var(--line);border-radius:13px;padding:14px}.limit .big{font-size:20px;font-weight:700}
+  .bar{height:6px;border-radius:999px;background:var(--line);margin-top:9px;overflow:hidden}.bar>i{display:block;height:100%;border-radius:999px}
+  .view{display:none;flex-direction:column;gap:16px}.view.on{display:flex}
+
+  /* watchlist + focus */
+  .wl .it{display:grid;grid-template-columns:auto 60px 1fr auto;gap:12px;align-items:center;padding:9px 6px;border-radius:9px}
+  .wl .it:hover{background:var(--bg)}.wl .pair{font-weight:600}.wl .px{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .wl .chg{font-weight:600;font-size:13px;font-variant-numeric:tabular-nums}.wl .chg.up{color:var(--green)}.wl .chg.down{color:var(--coral)}
+  .sig{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px}.sig.buy{background:var(--blue-soft);color:var(--blue)}
+  .sig.sell{background:var(--coral-soft);color:var(--coral)}.sig.flat{background:var(--line);color:var(--muted)}
+  .fc{display:grid;grid-template-columns:24px 1fr auto;gap:11px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:11px;margin-top:8px}
+  .fc.top{border-color:var(--blue);background:var(--blue-soft)}.fc .rk{font-weight:800;color:var(--muted);text-align:center}
+  .fc .s{font-size:11.5px;color:var(--muted);margin-top:2px}.fc .score{font-weight:800}.ok{color:var(--green);font-weight:600}.no{color:var(--coral);font-weight:600}
+
+  /* bot */
+  .orb{width:44px;height:44px;border-radius:13px;background:var(--blue-soft);display:grid;place-items:center;position:relative}
+  .orb .core{width:13px;height:13px;border-radius:50%;background:var(--blue)}.orb.run .core{animation:pulse 1.3s ease-in-out infinite}
+  .orb.paused{background:var(--amber-soft)}.orb.paused .core{background:var(--amber);animation:none}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.7);opacity:.6}}
+  .ladder{font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--card);color:var(--muted);border:1px solid var(--line)}
+  .ladder.done{background:var(--green-soft);color:var(--green);border-color:transparent}.ladder.cur{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .sessions{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:12px}
+  .sess{border:1px solid var(--line);border-radius:13px;padding:14px}.sess .eq{font-size:20px;font-weight:800}
+  .sess .meta{font-size:12px;color:var(--muted);margin-top:2px}.pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px}
+  .pill.manuel{background:var(--blue-soft);color:var(--blue)}.pill.auto{background:var(--green-soft);color:var(--green)}
+  .appr{border:1px solid var(--blue);border-radius:13px;padding:13px;display:flex;gap:13px;align-items:center;margin-bottom:10px}
+  .ring{position:relative;width:50px;height:50px;flex:0 0 auto}.ring svg{transform:rotate(-90deg)}.ring .num{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:14px}
+  .appr .info{flex:1;min-width:0}.appr .ttl{font-weight:700}.appr .det{font-size:12px;color:var(--muted);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}
+  .appr .acts{display:flex;gap:7px;flex-shrink:0}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:11px}.field label{font-size:12px;color:var(--muted);font-weight:600}
+  select,input[type=range]{font-family:inherit;font-size:13px}
+  select{padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink)}
+  .seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+  .seg button{flex:1;border:0;background:transparent;color:var(--muted);font-weight:600;padding:8px;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit}
+  .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  .inbox{display:flex;flex-direction:column;gap:8px;max-height:230px;overflow:auto}
+  .msg{display:flex;gap:10px;align-items:center;font-size:13px;padding:9px 11px;border:1px solid var(--line);border-radius:10px}
+  .msg .when{margin-left:auto;font-size:11px;color:var(--faint)}.empty{font-size:13px;color:var(--muted);text-align:center;padding:16px}
+  .toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;z-index:60;max-width:320px}
+  .toast{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:11px;padding:11px 13px;box-shadow:var(--shadow)}
+  .toast.green{border-left-color:var(--green)}.toast.amber{border-left-color:var(--amber)}.toast.red{border-left-color:var(--coral)}
+  .toast .tt{font-weight:700;font-size:13px}.toast .tb{font-size:12px;color:var(--muted);margin-top:2px}
+  @media(max-width:1280px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:1024px){.app{grid-template-columns:1fr}.side{position:fixed;left:0;top:0;width:268px;transform:translateX(-100%);transition:.25s;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+    .side.open{transform:none}.menuBtn{display:inline-flex}.r2{grid-template-columns:1fr}}
+  @media(max-width:768px){.main{padding:16px 14px 32px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+  /* Écran de connexion */
+  .auth{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+  .auth.hidden{display:none}
+  .auth .box{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px;box-shadow:var(--shadow)}
+  .auth input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-family:inherit;margin-bottom:10px}
+  .auth .err{color:var(--coral);font-size:12.5px;min-height:17px}
+  .auth .alt{font-size:13px;color:var(--muted);text-align:center;margin-top:14px}
+  .auth .alt a{color:var(--blue);cursor:pointer;font-weight:600}
+  .auth .note{font-size:11.5px;color:var(--amber);background:var(--amber-soft);padding:9px 11px;border-radius:9px;margin-bottom:14px;line-height:1.5}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="auth" id="auth">
+  <div class="box">
+    <div class="brand" style="justify-content:center;padding:0 0 16px"><div class="logo">◈</div><b>Agent Forex</b></div>
+    <div id="cfgNote" class="note" style="display:none">⚠ Clé Supabase manquante. Ouvrez le code et collez votre clé publique dans <b>SUPABASE_ANON_KEY</b> (Supabase → Project Settings → API → clé « anon / public » ou « publishable »).</div>
+    <h3 id="authTitle" style="justify-content:center;margin-bottom:16px">Connexion</h3>
+    <input id="email" type="email" placeholder="Adresse e-mail" autocomplete="email">
+    <input id="password" type="password" placeholder="Mot de passe" autocomplete="current-password">
+    <div class="err" id="authErr"></div>
+    <button class="btn primary" id="authBtn" style="width:100%;justify-content:center;margin-top:4px">Se connecter</button>
+    <div class="alt"><span id="altText">Pas de compte ?</span> <a id="toggleMode">Créer un compte</a></div>
+  </div>
+</div>
+<div class="app">
+  <aside class="side" id="side">
+    <div class="brand"><div class="logo">◈</div><b>Agent Forex</b></div>
+    <div class="navlabel">Pilotage</div>
+    <div class="nav active" data-view="apercu"><span>▤</span> Aperçu du compte</div>
+    <div class="nav" data-view="bot"><span>🤖</span> Bot sous tutelle</div>
+    <div class="navlabel">Bientôt</div>
+    <div class="nav" data-view="apercu"><span>≣</span> Historique</div>
+    <div class="nav" data-view="apercu"><span>▦</span> Backtest</div>
+    <div class="acct">
+      <div class="r"><span>Solde commun</span><b id="acctBal">10 000 $</b></div>
+      <div class="r"><span>Disponible</span><b id="acctAvail">10 000 $</b></div>
+      <div class="r"><span>Statut</span><b><span class="dot"></span> Practice</b></div>
+      <div class="r" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px"><span id="userEmail" style="font-size:12px">—</span>
+        <a id="signout" style="color:var(--blue);cursor:pointer;font-weight:600;font-size:12px">Déconnexion</a></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="menuBtn" id="menuBtn">☰</button>
+        <div><h1 id="viewTitle">Aperçu du compte</h1><div class="sub" id="viewSub">EUR/USD · EUR/CAD — compte de démonstration</div></div>
+      </div>
+      <div class="toolbar">
+        <span class="badge practice">● Practice</span>
+        <span class="badge lock">🔒 Réel verrouillé</span>
+        <button class="btn ghost" id="themeBtn">◐</button>
+      </div>
+    </div>
+
+    <!-- ============ VUE APERÇU ============ -->
+    <section class="view on" id="view-apercu">
+      <div class="grid r2">
+        <div class="card">
+          <div class="top" style="margin-bottom:4px"><h3>Solde &amp; Équity</h3>
+            <div class="stat"><div><div class="v" id="ovBal">10 000 $</div><div class="k">Solde</div></div>
+            <div><div class="v" id="ovEq">10 000 $</div><div class="k">Équity</div></div></div></div>
+          <svg viewBox="0 0 640 170" preserveAspectRatio="none" style="width:100%;height:160px;margin-top:8px">
+            <line x1="0" y1="20" x2="640" y2="20" stroke="var(--line)"/><line x1="0" y1="80" x2="640" y2="80" stroke="var(--line)"/><line x1="0" y1="140" x2="640" y2="140" stroke="var(--line)"/>
+            <polyline points="0,120 80,112 160,118 240,96 320,100 400,76 480,84 560,60 640,66" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="card limit"><h3 style="font-size:13px">Objectif de profit</h3><div class="big" style="margin-top:8px">+243,80 $</div>
+            <div class="bar"><i style="width:33%;background:var(--blue)"></i></div><div class="cap" style="margin-top:7px">cible +750 $ · 33 %</div></div>
+          <div class="card limit"><h3 style="font-size:13px">Limite de perte journalière</h3><div class="big" style="margin-top:8px">−38,20 $</div>
+            <div class="bar"><i style="width:19%;background:var(--coral)"></i></div><div class="cap" style="margin-top:7px">plafond −200 $ · 19 %</div></div>
+        </div>
+      </div>
+
+      <div class="grid kpis">
+        <div class="card kpi"><div class="lab">Profit factor</div><div class="num">1,04</div></div>
+        <div class="card kpi"><div class="lab">Réussite</div><div class="num">36,4 %</div></div>
+        <div class="card kpi"><div class="lab">Risk/Reward</div><div class="num">2,0:1</div></div>
+        <div class="card kpi"><div class="lab">Espérance</div><div class="num">+0,03 R</div></div>
+        <div class="card kpi"><div class="lab">Sessions actives</div><div class="num" id="ovSess">0 / 5</div></div>
+        <div class="card kpi"><div class="lab">Drawdown max</div><div class="num">4,97 %</div></div>
+      </div>
+
+      <div class="grid r2">
+        <div class="card"><h3>🌐 Marchés suivis</h3><div class="cap" style="margin-top:3px">Signal indicatif, toujours filtré par le risque</div>
+          <div class="wl" style="margin-top:6px">
+            <div class="it"><span class="pair">EUR/USD</span><span class="px">1,0850</span><span></span><span><span class="chg up">+0,32 %</span> <span class="sig buy">Achat</span></span></div>
+            <div class="it"><span class="pair">EUR/CAD</span><span class="px">1,4700</span><span></span><span><span class="chg down">−0,18 %</span> <span class="sig sell">Vente</span></span></div>
+            <div class="it"><span class="pair">GBP/USD</span><span class="px">1,2730</span><span></span><span><span class="chg up">+0,41 %</span> <span class="sig buy">Achat</span></span></div>
+            <div class="it"><span class="pair">USD/JPY</span><span class="px">156,80</span><span></span><span><span class="chg down">−0,27 %</span> <span class="sig sell">Vente</span></span></div>
+            <div class="it"><span class="pair">USD/CAD</span><span class="px">1,3620</span><span></span><span><span class="chg up">+0,05 %</span> <span class="sig flat">Neutre</span></span></div>
+          </div>
+        </div>
+        <div class="card"><h3>🎯 À surveiller en priorité</h3><div class="cap" style="margin-top:3px">Classé par fiabilité — à valider, pas des promesses</div>
+          <div class="fc top"><div class="rk">1</div><div><div style="font-weight:600">Acheter GBP/USD</div><div class="s">gain visé <b class="ok">+24 $</b> · fiabilité 78 % · macro <span class="ok">dégagé</span></div></div><div class="score" style="color:var(--blue)">78</div></div>
+          <div class="fc"><div class="rk">2</div><div><div style="font-weight:600">Acheter EUR/USD</div><div class="s">gain visé <b class="ok">+19 $</b> · fiabilité 71 % · macro <span class="ok">dégagé</span></div></div><div class="score">71</div></div>
+          <div class="fc"><div class="rk">—</div><div><div style="font-weight:600">Vendre EUR/CAD</div><div class="s">fiabilité 64 % · macro <span class="no">blackout BCE</span></div></div><div class="score" style="color:var(--coral)">⏸</div></div>
+          <div class="cap" style="margin-top:10px">La dernière est écartée : un événement BCE imminent la met en blackout.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VUE BOT SOUS TUTELLE ============ -->
+    <section class="view" id="view-bot">
+      <div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div class="orb run" id="orb"><div class="core"></div></div>
+        <div><h3>Bot sous tutelle</h3><div class="cap" id="botState">En activité — scan en cours</div></div>
+        <div style="flex:1;display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
+          <span class="ladder done">✓ Backtest</span><span class="ladder cur">Maîtrise 30 j</span><span class="ladder">Réel</span>
+          <button class="btn" id="pauseBtn">⏸ Pause</button><button class="btn red" id="killBtn">⏹ Arrêt</button>
+        </div>
+      </div>
+
+      <div class="grid r2">
+        <div class="card"><h3>▶ Lancer une session</h3>
+          <div class="cap" style="margin:3px 0 12px">Budget prélevé du capital disponible, rendu (± résultat) à la fin.</div>
+          <div class="field"><label>Budget : <b id="allocLabel">2 000 $</b></label><input type="range" id="alloc" min="500" max="5000" step="250" value="2000"></div>
+          <div style="display:flex;gap:12px"><div class="field" style="flex:1"><label>Option de risque</label>
+            <select id="profile"><option>Réservé</option><option selected>Doux</option><option>Agressif</option></select></div>
+            <div class="field" style="flex:1"><label>Durée</label><select id="duration"><option value="60">1 h</option><option value="120" selected>2 h</option><option value="240">4 h</option></select></div></div>
+          <div class="field"><label>Tutelle</label><div class="seg" id="tutelleSeg">
+            <button class="on" data-t="manuel">Manuel — Oui/Non</button><button data-t="auto">Auto</button></div>
+            <div class="cap" style="margin-top:6px">L'option de risque s'applique aux deux modes.</div></div>
+          <button class="btn primary" id="launchBtn" style="width:100%;justify-content:center">Lancer la session</button>
+        </div>
+        <div class="card"><h3>✉ Messagerie</h3><div class="cap" style="margin:3px 0 12px">Alertes (toast + in-app + email)</div>
+          <div class="inbox" id="inbox"><div class="empty">Aucun message.</div></div></div>
+      </div>
+
+      <div class="card"><h3>💡 Opportunités de profit <span class="cap" style="font-weight:400">— Oui/Non sous 45 s</span></h3>
+        <div id="approvals" style="margin-top:10px"><div class="empty" id="apprEmpty">Aucune proposition en attente.</div></div></div>
+
+      <div class="card"><h3>▦ Sessions</h3><div class="sessions" id="sessions"></div><div class="empty" id="sessEmpty">Aucune session. Lancez-en une.</div></div>
+
+      <div class="grid r2">
+        <div class="card"><h3>📒 Rapports de session</h3><div class="cap" style="margin:3px 0 12px">Gain ou perte finale</div>
+          <div class="inbox" id="reports"><div class="empty">Aucune session terminée.</div></div></div>
+        <div class="card"><h3>📚 Ce que le bot apprend</h3><div class="cap" style="margin:3px 0 12px">Le bot devient sélectif, il n'apprend pas à prédire</div>
+          <div id="learning"><div class="empty">Pas encore assez de trades.</div></div></div>
+      </div>
+    </section>
+  </main>
+  <div class="scrim" id="scrim"></div>
+</div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const money=v=>Math.round(v).toLocaleString('fr-CA')+' $';
+const PAIRS=['EUR/USD','EUR/CAD'],AUTO_CAP={'Réservé':0.5,'Doux':1.0,'Agressif':1.5};
+let state={balance:10000,sessions:[],pending:[],running:true,tutelle:'manuel',sid:0,pid:0,
+  inbox:[],history:[],reports:[],learnedMin:0,bands:null,enoughData:false};
+
+const reserved=()=>state.sessions.filter(s=>s.active).reduce((a,s)=>a+s.alloc,0);
+const available=()=>state.balance-reserved();
+const activeCount=()=>state.sessions.filter(s=>s.active).length;
+
+/* ---------- routeur de vues (consolidation visuelle) ---------- */
+const TITLES={apercu:['Aperçu du compte','EUR/USD · EUR/CAD — compte de démonstration'],
+  bot:['Bot sous tutelle','Cours réels · capital fictif · validation 30 jours']};
+function showView(v){
+  document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+v));
+  document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('active',n.dataset.view===v && n.textContent.includes(v==='bot'?'Bot':'Aperçu')));
+  $('viewTitle').textContent=TITLES[v][0];$('viewSub').textContent=TITLES[v][1];
+  renderAll();
+}
+document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>{showView(n.dataset.view);toggleSide(false);});
+
+/* ---------- source de vérité partagée : le solde ---------- */
+function renderShared(){
+  $('acctBal').textContent=money(state.balance);$('acctAvail').textContent=money(available());
+  $('ovBal').textContent=money(state.balance);$('ovEq').textContent=money(state.balance);
+  $('ovSess').textContent=activeCount()+' / 5';
+}
+
+/* ---------- vue bot ---------- */
+function renderBotHead(){
+  $('orb').className='orb '+(state.running?'run':'paused');
+  $('botState').textContent=state.running?'En activité — scan en cours':'En pause';
+  $('pauseBtn').textContent=state.running?'⏸ Pause':'▶ Reprendre';
+  const max=Math.min(5000,Math.max(500,available()));$('alloc').max=max>500?max:500;
+}
+function renderSessions(){
+  const el=$('sessions');el.innerHTML='';const list=state.sessions.filter(s=>s.active);
+  $('sessEmpty').style.display=list.length?'none':'block';
+  list.forEach(s=>{const eq=s.alloc+s.pnl,pc=s.pnl>=0?'var(--green)':'var(--coral)',sign=s.pnl>=0?'+':'';
+    const d=document.createElement('div');d.className='sess';
+    d.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>#${s.id}</b><span class="pill ${s.tutelle}">${s.tutelle==='auto'?'Auto · '+s.profile:'Manuel'}</span></div>
+      <div class="eq">${money(eq)}</div><div class="meta">budget ${money(s.alloc)} · <span style="color:${pc}">${sign}${s.pnl.toFixed(2)} $</span> · ${s.trades} trade(s)</div>
+      <div class="meta" style="margin-top:4px">${s.minsLeft} min restantes</div>
+      <button class="btn ghost" style="margin-top:11px;padding:6px 10px;font-size:12px" onclick="closeSession(${s.id})">Clôturer</button>`;
+    el.appendChild(d);});
+}
+function renderApprovals(now){
+  const el=$('approvals'),list=state.pending.filter(p=>p.status==='pending');
+  $('apprEmpty').style.display=list.length?'none':'block';
+  [...el.querySelectorAll('.appr')].forEach(n=>n.remove());
+  list.forEach(p=>{const left=Math.max(0,Math.ceil((p.expires-now)/1000)),C=125.66,off=C*(1-left/45),col=left<=10?'var(--coral)':'var(--blue)';
+    const d=document.createElement('div');d.className='appr';
+    d.innerHTML=`<div class="ring"><svg width="50" height="50"><circle cx="25" cy="25" r="20" fill="none" stroke="var(--line)" stroke-width="5"/>
+      <circle cx="25" cy="25" r="20" fill="none" stroke="${col}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"/></svg><div class="num" style="color:${col}">${left}</div></div>
+      <div class="info"><div class="ttl">Occasion — ${p.side==='achat'?'acheter':'vendre'} ${p.pair}</div>
+      <div class="det"><span>gain <b class="ok">+${p.gain.toFixed(2)} $</b></span><span>risque <b class="no">−${p.risk.toFixed(2)} $</b></span><span>fiabilité ${Math.round(p.conf*100)}%</span><span>#${p.sess}</span></div></div>
+      <div class="acts"><button class="btn green" onclick="decide(${p.id},'approved')">✓ Oui</button><button class="btn red" onclick="decide(${p.id},'rejected')">✗ Non</button></div>`;
+    el.appendChild(d);});
+}
+function renderInbox(){const el=$('inbox');if(!state.inbox.length){el.innerHTML='<div class="empty">Aucun message.</div>';return;}
+  el.innerHTML=state.inbox.slice(-12).reverse().map(m=>`<div class="msg"><span class="dot" style="background:${m.col}"></span><div><b>${m.title}</b><div class="cap">${m.body}</div></div><span class="when">${m.when}</span></div>`).join('');}
+function renderReports(){const el=$('reports');if(!state.reports.length){el.innerHTML='<div class="empty">Aucune session terminée.</div>';return;}
+  el.innerHTML=state.reports.slice().reverse().map(r=>{const c=r.verdict==='GAIN'?'var(--green)':r.verdict==='PERTE'?'var(--coral)':'var(--muted)',sign=r.pnl>=0?'+':'';
+    return `<div class="msg"><span class="dot" style="background:${c}"></span><div><b>Session #${r.id} — <span style="color:${c}">${r.verdict}</span></b><div class="cap">${sign}${r.pnl.toFixed(2)} $ (${sign}${(r.pnl/r.alloc*100).toFixed(2)} %) · ${r.wins}G/${r.losses}P · ${r.mode}</div></div></div>`;}).join('');}
+function renderLearning(){const el=$('learning');if(!state.bands||!state.history.length){el.innerHTML='<div class="empty">Pas encore assez de trades.</div>';return;}
+  let h=state.bands.map(b=>{const c=b.n===0?'var(--muted)':(b.exp>0?'var(--green)':'var(--coral)');
+    return `<div class="msg"><div style="flex:1">fiabilité ${b.label}</div><div class="cap">${b.n} trades</div><b style="color:${c};min-width:60px;text-align:right">${b.exp>=0?'+':''}${b.exp.toFixed(2)}R</b></div>`;}).join('');
+  h+=`<div class="cap" style="margin-top:10px">${state.enoughData?'✓ Seuil appris : le bot privilégie les occasions ≥ '+Math.round(state.learnedMin*100)+' %.':'Données insuffisantes — le bot n\'apprend pas du bruit.'}</div>`;el.innerHTML=h;}
+function renderAll(){renderShared();renderBotHead();renderSessions();renderApprovals(Date.now());renderInbox();renderReports();renderLearning();}
+
+/* ---------- alertes ---------- */
+function alert(kind,title,body,col,toast){const when=new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+  const c={info:'var(--blue)',executed:'var(--green)',expired:'var(--amber)',rejected:'var(--coral)',approval:'var(--blue)'}[kind]||'var(--blue)';
+  state.inbox.push({kind,title,body,when,col:c});
+  if(toast!==null){const t=document.createElement('div');t.className='toast '+(toast||'');t.innerHTML=`<div class="tt">${title}</div><div class="tb">${body}</div>`;$('toasts').appendChild(t);setTimeout(()=>t.remove(),4200);}
+  renderInbox();}
+
+/* ---------- actions ---------- */
+$('alloc').oninput=e=>$('allocLabel').textContent=money(+e.target.value);
+$('tutelleSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');state.tutelle=b.dataset.t;};
+$('launchBtn').onclick=()=>{const alloc=+$('alloc').value;
+  if(activeCount()>=5){alert('info','Limite atteinte','Maximum 5 sessions.','','amber');return;}
+  if(alloc>available()){alert('info','Budget trop élevé','Disponible : '+money(available()),'','amber');return;}
+  state.sessions.push({id:++state.sid,alloc,pnl:0,trades:0,active:true,profile:$('profile').value,tutelle:state.tutelle,dur:+$('duration').value,minsLeft:+$('duration').value});
+  alert('info','Session #'+state.sid+' lancée','Budget '+money(alloc),'','');renderAll();};
+function endSession(s,reason){if(!s||!s.active)return;s.active=false;
+  const wins=state.history.filter(h=>h.sess===s.id&&h.R>0).length,losses=state.history.filter(h=>h.sess===s.id&&h.R<0).length;
+  const verdict=s.pnl>1e-9?'GAIN':(s.pnl<-1e-9?'PERTE':'NEUTRE'),sign=s.pnl>=0?'+':'';
+  state.reports.push({id:s.id,pnl:s.pnl,alloc:s.alloc,trades:s.trades,wins,losses,verdict,mode:s.tutelle});
+  alert(s.pnl>=0?'executed':'rejected',`Rapport #${s.id} : ${verdict}`,`${sign}${s.pnl.toFixed(2)} $ (${sign}${(s.pnl/s.alloc*100).toFixed(2)} %) · ${reason}`,'',s.pnl>=0?'green':'red');
+  renderAll();}
+function closeSession(id){endSession(state.sessions.find(x=>x.id===id),'clôture manuelle');}
+$('pauseBtn').onclick=()=>{state.running=!state.running;renderAll();};
+$('killBtn').onclick=()=>{state.sessions.filter(s=>s.active).forEach(s=>endSession(s,'arrêt d\'urgence'));
+  state.pending.forEach(p=>{if(p.status==='pending')p.status='expired';});state.running=false;
+  alert('rejected','Arrêt d\'urgence','Sessions clôturées, bot stoppé.','','red');renderAll();};
+function decide(pid,status){const p=state.pending.find(x=>x.id===pid);if(!p||p.status!=='pending')return;p.status=status;
+  if(status==='approved'){alert('executed',`Exécuté — ${p.pair}`,`${p.units} u (practice).`,'','green');setTimeout(()=>resolveTrade(p),2500+Math.random()*2500);}
+  else alert('rejected',`Rejeté — ${p.pair}`,'Aucune position.','',null);renderAll();}
+function resolveTrade(p){const s=state.sessions.find(x=>x.id===p.sess);if(!s)return;
+  const winProb=Math.max(0.2,Math.min(0.62,0.22+(p.conf-0.6)*0.9)),win=Math.random()<winProb,pnl=win?p.risk*1.9:-p.risk*1.05;
+  s.pnl=+(s.pnl+pnl).toFixed(2);s.trades++;state.balance=+(state.balance+pnl).toFixed(2);
+  state.history.push({conf:p.conf,R:win?1.9:-1.05,sess:p.sess});updateLearning();
+  if(s.pnl<=-s.alloc*0.25&&s.active)endSession(s,'perte max de session');renderAll();}
+function updateLearning(){const defs=[['< 70 %',0,0.7],['70–80 %',0.7,0.8],['≥ 80 %',0.8,1.01]];
+  state.bands=defs.map(([label,lo,hi])=>{const rs=state.history.filter(h=>h.conf>=lo&&h.conf<hi).map(h=>h.R);return{label,lo,n:rs.length,exp:rs.length?rs.reduce((a,b)=>a+b,0)/rs.length:0};});
+  state.learnedMin=0;state.enoughData=false;for(const b of state.bands){if(b.n>=8&&b.exp>0){state.learnedMin=b.lo;state.enoughData=true;break;}}}
+
+/* ---------- boucle du bot ---------- */
+let lastProp=0;
+setInterval(()=>{const now=Date.now();
+  state.pending.forEach(p=>{if(p.status==='pending'&&now>=p.expires){p.status='expired';alert('expired',`Expiré — ${p.pair}`,'Aucune action (sûr).','',null);}});
+  if(now%60000<1000)state.sessions.forEach(s=>{if(s.active){s.minsLeft--;if(s.minsLeft<=0)endSession(s,'période terminée');}});
+  if(state.running&&now-lastProp>5500){lastProp=now;const act=state.sessions.filter(s=>s.active),pc=state.pending.filter(p=>p.status==='pending').length;
+    if(act.length&&pc<4&&Math.random()<0.8){const s=act[Math.floor(Math.random()*act.length)],conf=+(0.6+Math.random()*0.32).toFixed(2);
+      if(!(state.learnedMin&&conf<state.learnedMin)){
+        const caution=Math.random()<0.75?1:0.8,eq=s.alloc+s.pnl,risk=+(eq*(s.profile==='Agressif'?0.015:s.profile==='Doux'?0.01:0.005)*caution).toFixed(2);
+        const p={id:++state.pid,sess:s.id,pair:PAIRS[Math.floor(Math.random()*2)],side:Math.random()<0.5?'achat':'vente',units:Math.round(risk*900),risk,gain:+(risk*1.9).toFixed(2),conf,caution,created:now,expires:now+45000,status:'pending'};
+        const cap=AUTO_CAP[s.profile]||0.5;
+        if(s.tutelle==='auto'&&conf>=0.75&&caution>=1&&risk/eq*100<=cap){p.status='approved';state.pending.push(p);alert('executed',`Le bot a saisi — ${p.pair}`,`#${s.id} · +${p.gain} $ (auto).`,'','green');setTimeout(()=>resolveTrade(p),2500+Math.random()*2500);}
+        else{state.pending.push(p);alert('approval',`Occasion — ${p.pair}`,`#${s.id} · gain visé +${p.gain} $ · Oui/Non 45 s.`,'','');}
+      }}}
+  renderShared();renderBotHead();renderSessions();renderApprovals(now);
+},1000);
+
+$('menuBtn').onclick=()=>toggleSide(!$('side').classList.contains('open'));
+$('scrim').onclick=()=>toggleSide(false);
+function toggleSide(o){$('side').classList.toggle('open',o);$('scrim').classList.toggle('show',o);}
+$('themeBtn').onclick=()=>{const r=document.documentElement;r.setAttribute('data-theme',r.getAttribute('data-theme')==='dark'?'light':'dark');};
+renderAll();
+
+/* ---------- Authentification Supabase ---------- */
+const SUPABASE_URL="https://qdhnnsipwnogecrptxfk.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_z7_8LyZhtMrG2LIBQoMGZA_QsjsH-fw";
+let sb=null,authMode='signin';
+function initAuth(){
+  if(!SUPABASE_ANON_KEY||!(window.supabase&&window.supabase.createClient)){$('cfgNote').style.display='block';return;}
+  sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+  sb.auth.getSession().then(({data})=>{if(data&&data.session)onSignedIn(data.session.user);});
+  sb.auth.onAuthStateChange((_e,session)=>{session?onSignedIn(session.user):onSignedOut();});
+}
+function onSignedIn(u){$('auth').classList.add('hidden');$('userEmail').textContent=u.email||'connecté';}
+function onSignedOut(){$('auth').classList.remove('hidden');}
+function setMode(m){authMode=m;
+  $('authTitle').textContent=m==='signin'?'Connexion':'Créer un compte';
+  $('authBtn').textContent=m==='signin'?'Se connecter':'Créer le compte';
+  $('altText').textContent=m==='signin'?'Pas de compte ?':'Déjà inscrit ?';
+  $('toggleMode').textContent=m==='signin'?'Créer un compte':'Se connecter';
+  $('authErr').textContent='';}
+$('toggleMode').onclick=()=>setMode(authMode==='signin'?'signup':'signin');
+$('authBtn').onclick=async()=>{
+  if(!sb){$('authErr').textContent='Configuration Supabase manquante.';return;}
+  const email=$('email').value.trim(),pw=$('password').value;
+  if(!email||!pw){$('authErr').textContent='E-mail et mot de passe requis.';return;}
+  $('authErr').textContent='…';$('authBtn').disabled=true;
+  try{
+    const res=authMode==='signin'
+      ? await sb.auth.signInWithPassword({email,password:pw})
+      : await sb.auth.signUp({email,password:pw});
+    if(res.error)$('authErr').textContent=res.error.message;
+    else if(authMode==='signup'&&!res.data.session)$('authErr').textContent='Compte créé — vérifiez votre e-mail pour confirmer.';
+    else $('authErr').textContent='';
+  }catch(e){$('authErr').textContent=e.message||'Erreur de connexion.';}
+  $('authBtn').disabled=false;};
+$('email').addEventListener('keydown',e=>{if(e.key==='Enter')$('password').focus();});
+$('password').addEventListener('keydown',e=>{if(e.key==='Enter')$('authBtn').click();});
+$('signout').onclick=async()=>{if(sb)await sb.auth.signOut();};
+initAuth();
+</script>
+</body>
+</html>

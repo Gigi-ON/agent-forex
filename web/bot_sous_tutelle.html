@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bot sous tutelle — Agent Forex</title>
+<style>
+  :root{
+    --bg:#EEF0F4;--card:#fff;--ink:#171A21;--muted:#8B90A0;--faint:#B9BEC9;
+    --line:#EAECF1;--blue:#2F6BFF;--blue-soft:#EAF0FF;--green:#15A971;--green-soft:#E7F7F0;
+    --coral:#EE5A42;--coral-soft:#FDECE8;--amber:#E0902F;--amber-soft:#FBF0E0;
+    --shadow:0 1px 2px rgba(20,24,33,.04),0 8px 24px rgba(20,24,33,.05);
+  }
+  [data-theme="dark"]{
+    --bg:#0D1015;--card:#161A22;--ink:#EDEFF3;--muted:#8A91A1;--faint:#5A6172;
+    --line:#242A36;--blue:#4C82FF;--blue-soft:#16233E;--green:#27C28A;--green-soft:#10271F;
+    --coral:#F0654C;--coral-soft:#2A1712;--amber:#E8A24A;--amber-soft:#2A2010;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.45;font-size:14px;
+    -webkit-font-smoothing:antialiased;padding:22px}
+  .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:18px;box-shadow:var(--shadow)}
+  h2{font-size:18px;letter-spacing:-.3px}
+  h3{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .cap{font-size:12px;color:var(--muted)}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);
+    padding:9px 14px;border-radius:11px;font-weight:600;font-size:13px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;font-family:inherit;transition:.15s}
+  .btn:hover{border-color:var(--faint)}
+  .btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .btn.green{background:var(--green);color:#fff;border-color:var(--green)}
+  .btn.red{background:var(--coral);color:#fff;border-color:var(--coral)}
+  .btn.ghost{background:transparent}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .ladder{font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:999px;
+    background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+  [data-theme="dark"] .ladder{background:#10141b}
+  .ladder.done{background:var(--green-soft);color:var(--green);border-color:transparent}
+  .ladder.cur{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+  /* Header */
+  .head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .bot-status{display:flex;align-items:center;gap:13px}
+  .orb{width:46px;height:46px;border-radius:13px;background:var(--blue-soft);
+    display:grid;place-items:center;position:relative}
+  .orb .core{width:14px;height:14px;border-radius:50%;background:var(--blue)}
+  .orb.run .core{animation:pulse 1.3s ease-in-out infinite}
+  .orb.paused{background:var(--amber-soft)} .orb.paused .core{background:var(--amber);animation:none}
+  .orb.run::after{content:"";position:absolute;inset:0;border-radius:13px;
+    border:2px solid var(--blue);opacity:0;animation:ring 1.6s ease-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.7);opacity:.6}}
+  @keyframes ring{0%{transform:scale(.7);opacity:.6}100%{transform:scale(1.25);opacity:0}}
+  .stat{display:flex;gap:24px}
+  .stat .v{font-size:20px;font-weight:800;letter-spacing:-.4px}
+  .stat .k{font-size:11.5px;color:var(--muted)}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;
+    font-weight:600;font-size:12px}
+  .badge.practice{background:var(--amber-soft);color:var(--amber)}
+
+  /* Launch form */
+  .grid2{display:grid;grid-template-columns:1.1fr 1fr;gap:16px}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .field label{font-size:12px;color:var(--muted);font-weight:600}
+  input[type=range]{width:100%}
+  select,input[type=number]{font-family:inherit;font-size:13px;padding:8px 10px;
+    border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink)}
+  .seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+  [data-theme="dark"] .seg{background:#10141b}
+  .seg button{flex:1;border:0;background:transparent;color:var(--muted);font-weight:600;
+    padding:8px;border-radius:7px;cursor:pointer;font-size:12.5px;font-family:inherit}
+  .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+
+  /* Sessions */
+  .sessions{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .sess{border:1px solid var(--line);border-radius:13px;padding:14px;position:relative;overflow:hidden}
+  .sess .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px}
+  .pill.manuel{background:var(--blue-soft);color:var(--blue)}
+  .pill.auto{background:var(--green-soft);color:var(--green)}
+  .sess .eq{font-size:21px;font-weight:800;letter-spacing:-.4px}
+  .sess .meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .sess .pnl.pos{color:var(--green)} .sess .pnl.neg{color:var(--coral)}
+  .sbar{height:5px;border-radius:999px;background:var(--line);margin-top:12px;overflow:hidden}
+  .sbar>i{display:block;height:100%;background:var(--blue);border-radius:999px}
+  .sess .acts{display:flex;gap:7px;margin-top:12px}
+  .sess .acts .btn{padding:6px 10px;font-size:12px}
+  .sess.closed{opacity:.55}
+
+  /* Approvals */
+  .appr{border:1px solid var(--blue);border-radius:13px;padding:14px;display:flex;
+    gap:14px;align-items:center;animation:slidein .35s ease}
+  @keyframes slidein{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}
+  .ring{flex:0 0 auto;position:relative;width:54px;height:54px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .num{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:15px}
+  .appr .info{flex:1;min-width:0}
+  .appr .ttl{font-weight:700;font-size:14px}
+  .appr .det{font-size:12.5px;color:var(--muted);margin-top:3px;display:flex;gap:14px;flex-wrap:wrap}
+  .appr .acts{display:flex;gap:8px;flex-shrink:0}
+  .empty{font-size:13px;color:var(--muted);text-align:center;padding:18px}
+
+  /* Toasts */
+  .toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;z-index:50;max-width:330px}
+  .toast{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--blue);
+    border-radius:11px;padding:12px 14px;box-shadow:var(--shadow);animation:slidein .3s ease}
+  .toast.green{border-left-color:var(--green)} .toast.amber{border-left-color:var(--amber)}
+  .toast.red{border-left-color:var(--coral)}
+  .toast .tt{font-weight:700;font-size:13px} .toast .tb{font-size:12px;color:var(--muted);margin-top:2px}
+
+  /* Inbox */
+  .inbox{display:flex;flex-direction:column;gap:8px;max-height:240px;overflow:auto}
+  .msg{display:flex;gap:10px;align-items:center;font-size:13px;padding:9px 11px;
+    border:1px solid var(--line);border-radius:10px}
+  .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+  .dot.approval{background:var(--blue)} .dot.executed{background:var(--green)}
+  .dot.expired{background:var(--amber)} .dot.rejected{background:var(--coral)}
+  .msg .when{margin-left:auto;font-size:11px;color:var(--faint)}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}.head{gap:12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Mode maîtrise du marché -->
+  <div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div>
+      <h3>🎯 Mode maîtrise du marché</h3>
+      <div class="cap" style="margin-top:3px">Cours réels · capital fictif · 30 jours pour prouver un avantage avant tout argent réel</div>
+    </div>
+    <div style="flex:1;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+      <span class="ladder done">✓ Backtest</span>
+      <span class="ladder cur">Maîtrise 30 j</span>
+      <span class="ladder">Réel</span>
+    </div>
+  </div>
+
+  <!-- Header / contrôles globaux -->
+  <div class="card head">
+    <div class="bot-status">
+      <div class="orb run" id="orb"><div class="core"></div></div>
+      <div>
+        <h2>Bot sous tutelle</h2>
+        <div class="cap" id="botState">En activité — scan en cours</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div><div class="v" id="balance">10 000 $</div><div class="k">Solde commun</div></div>
+      <div><div class="v" id="available">10 000 $</div><div class="k">Disponible</div></div>
+      <div><div class="v" id="activeCount">0 / 5</div><div class="k">Sessions actives</div></div>
+    </div>
+    <div class="row">
+      <span class="badge practice">● Mode practice</span>
+      <button class="btn" id="pauseBtn">⏸ Pause</button>
+      <button class="btn red" id="killBtn">⏹ Arrêt d'urgence</button>
+      <button class="btn ghost" id="themeBtn">◐</button>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <!-- Lancer une session -->
+    <div class="card">
+      <h3>▶ Lancer une session</h3>
+      <div class="cap" style="margin:3px 0 14px">On alloue une somme du capital disponible ; elle est rendue au solde commun (± résultat) à la fin.</div>
+      <div class="field">
+        <label>Budget alloué : <b id="allocLabel">2 000 $</b></label>
+        <input type="range" id="alloc" min="500" max="5000" step="250" value="2000">
+      </div>
+      <div class="row" style="gap:12px">
+        <div class="field" style="flex:1">
+          <label>Option de risque</label>
+          <select id="profile"><option>Réservé</option><option selected>Doux</option><option>Agressif</option></select>
+        </div>
+        <div class="field" style="flex:1">
+          <label>Durée</label>
+          <select id="duration"><option value="60">1 h</option><option value="120" selected>2 h</option><option value="240">4 h</option></select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Niveau de tutelle</label>
+        <div class="seg" id="tutelleSeg">
+          <button class="on" data-t="manuel">Manuel — vous cliquez Oui / Non</button>
+          <button data-t="auto">Auto — le bot décide seul</button>
+        </div>
+        <div class="cap" style="margin-top:6px">L'option de risque ci-dessus s'applique dans les deux modes.</div>
+      </div>
+      <button class="btn primary" id="launchBtn" style="width:100%;justify-content:center">Lancer la session</button>
+    </div>
+
+    <!-- Messagerie in-app -->
+    <div class="card">
+      <h3>✉ Messagerie</h3>
+      <div class="cap" style="margin:3px 0 12px">Historique des alertes (toast + in-app + email)</div>
+      <div class="inbox" id="inbox"><div class="empty">Aucun message pour l'instant.</div></div>
+    </div>
+  </div>
+
+  <!-- Validations en attente -->
+  <div class="card">
+    <h3>💡 Opportunités de profit <span class="cap" style="font-weight:400">— le bot vous dit quand ; vous cliquez Oui ou Non (45 s)</span></h3>
+    <div id="approvals" style="display:flex;flex-direction:column;gap:11px;margin-top:10px">
+      <div class="empty" id="apprEmpty">Le bot n'a aucune proposition en attente.</div>
+    </div>
+  </div>
+
+  <!-- Sessions actives -->
+  <div class="card">
+    <h3>▦ Sessions</h3>
+    <div class="sessions" id="sessions" style="margin-top:12px"></div>
+    <div class="empty" id="sessEmpty">Aucune session. Lancez-en une ci-dessus.</div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>📒 Rapports de session</h3>
+      <div class="cap" style="margin:3px 0 12px">Gain ou perte finale de chaque session terminée</div>
+      <div class="inbox" id="reports"><div class="empty">Aucune session terminée pour l'instant.</div></div>
+    </div>
+    <div class="card">
+      <h3>📚 Ce que le bot apprend</h3>
+      <div class="cap" style="margin:3px 0 12px">Espérance par fiabilité — le bot devient sélectif, il n'apprend pas à prédire</div>
+      <div id="learning"><div class="empty">Pas encore assez de trades pour calibrer.</div></div>
+    </div>
+  </div>
+
+</div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const money=v=>Math.round(v).toLocaleString('fr-CA')+' $';
+const PAIRS=['EUR/USD','EUR/CAD'];
+const AUTO_CAP={'Réservé':0.5,'Doux':1.0,'Agressif':1.5};
+
+let state={balance:10000,sessions:[],pending:[],running:true,tutelle:'manuel',sid:0,pid:0};
+
+/* ---------- helpers comptables ---------- */
+const reserved=()=>state.sessions.filter(s=>s.active).reduce((a,s)=>a+s.alloc,0);
+const available=()=>state.balance-reserved();
+const activeCount=()=>state.sessions.filter(s=>s.active).length;
+
+/* ---------- rendu ---------- */
+function renderHead(){
+  $('balance').textContent=money(state.balance);
+  $('available').textContent=money(available());
+  $('activeCount').textContent=activeCount()+' / 5';
+  const orb=$('orb');
+  orb.className='orb '+(state.running?'run':'paused');
+  $('botState').textContent=state.running?'En activité — scan en cours':'En pause';
+  $('pauseBtn').textContent=state.running?'⏸ Pause':'▶ Reprendre';
+  const max=Math.min(5000,Math.max(500,available()));
+  $('alloc').max=max>500?max:500;
+}
+function renderSessions(){
+  const el=$('sessions');el.innerHTML='';
+  const list=state.sessions.filter(s=>s.active);
+  $('sessEmpty').style.display=list.length?'none':'block';
+  list.forEach(s=>{
+    const eq=s.alloc+s.pnl, pct=Math.max(0,Math.min(100,(s.minsLeft/s.dur)*100));
+    const pc=s.pnl>=0?'pos':'neg', sign=s.pnl>=0?'+':'';
+    const d=document.createElement('div');d.className='sess';
+    d.innerHTML=`<div class="top"><b>#${s.id}</b><span class="pill ${s.tutelle}">${s.tutelle==='auto'?'Auto · '+s.profile:'Manuel'}</span></div>
+      <div class="eq">${money(eq)}</div>
+      <div class="meta">budget ${money(s.alloc)} · <span class="pnl ${pc}">${sign}${s.pnl.toFixed(2)} $</span> · ${s.trades} trade(s)</div>
+      <div class="sbar"><i style="width:${pct}%"></i></div>
+      <div class="meta" style="margin-top:6px">${s.minsLeft} min restantes</div>
+      <div class="acts"><button class="btn ghost" onclick="closeSession(${s.id})">Clôturer</button></div>`;
+    el.appendChild(d);
+  });
+}
+function renderApprovals(now){
+  const el=$('approvals');
+  const list=state.pending.filter(p=>p.status==='pending');
+  $('apprEmpty').style.display=list.length?'none':'block';
+  [...el.querySelectorAll('.appr')].forEach(n=>n.remove());
+  list.forEach(p=>{
+    const left=Math.max(0,Math.ceil((p.expires-now)/1000));
+    const C=125.66, off=C*(1-left/45);
+    const col=left<=10?'var(--coral)':'var(--blue)';
+    const d=document.createElement('div');d.className='appr';
+    d.innerHTML=`<div class="ring"><svg width="54" height="54">
+        <circle cx="27" cy="27" r="20" fill="none" stroke="var(--line)" stroke-width="5"/>
+        <circle cx="27" cy="27" r="20" fill="none" stroke="${col}" stroke-width="5"
+          stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"/>
+      </svg><div class="num" style="color:${col}">${left}</div></div>
+      <div class="info"><div class="ttl">Occasion de profit — ${p.side==='achat'?'acheter':'vendre'} ${p.pair}</div>
+        <div class="det"><span>Gain visé <b style="color:var(--green)">+${p.gain.toFixed(2)} $</b></span>
+          <span>Risque max <b style="color:var(--coral)">−${p.risk.toFixed(2)} $</b></span>
+          <span>fiabilité ${Math.round(p.conf*100)}%</span><span>session #${p.sess}</span></div></div>
+      <div class="acts">
+        <button class="btn green" onclick="decide(${p.id},'approved')">✓ Oui, trader</button>
+        <button class="btn red" onclick="decide(${p.id},'rejected')">✗ Non</button>
+        <button class="btn ghost" onclick="modify(${p.id})" title="Réduire la taille">ajuster</button>
+      </div>`;
+    el.appendChild(d);
+  });
+}
+function renderInbox(){
+  const el=$('inbox');
+  if(!state.inbox||!state.inbox.length){el.innerHTML='<div class="empty">Aucun message pour l\'instant.</div>';return;}
+  el.innerHTML=state.inbox.slice(-12).reverse().map(m=>
+    `<div class="msg"><span class="dot ${m.kind}"></span><div><b>${m.title}</b><div class="cap">${m.body}</div></div><span class="when">${m.when}</span></div>`).join('');
+}
+function render(){renderHead();renderSessions();renderApprovals(Date.now());renderInbox();}
+
+/* ---------- alertes ---------- */
+state.inbox=[];
+state.history=[];state.reports=[];state.learnedMin=0;state.bands=null;state.enoughData=false;
+function alert(kind,title,body,toastColor){
+  const when=new Date().toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+  state.inbox.push({kind,title,body,when});
+  if(toastColor!==null){
+    const t=document.createElement('div');t.className='toast '+(toastColor||'');
+    t.innerHTML=`<div class="tt">${title}</div><div class="tb">${body}</div>`;
+    $('toasts').appendChild(t);
+    setTimeout(()=>t.remove(),4200);
+  }
+  renderInbox();
+}
+
+/* ---------- actions sessions ---------- */
+$('alloc').oninput=e=>$('allocLabel').textContent=money(+e.target.value);
+$('tutelleSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');state.tutelle=b.dataset.t;};
+$('launchBtn').onclick=()=>{
+  const alloc=+$('alloc').value;
+  if(activeCount()>=5){alert('info','Limite atteinte','Maximum 5 sessions simultanées.','amber');return;}
+  if(alloc>available()){alert('info','Budget trop élevé',`Disponible : ${money(available())}.`,'amber');return;}
+  const s={id:++state.sid,alloc,pnl:0,trades:0,active:true,profile:$('profile').value,
+    tutelle:state.tutelle,dur:+$('duration').value,minsLeft:+$('duration').value};
+  state.sessions.push(s);
+  alert('info','Session #'+s.id+' lancée',`Budget ${money(alloc)} · ${s.tutelle==='auto'?'auto ('+s.profile+')':'manuel'}`,'');
+  render();
+};
+function endSession(s,reason){
+  if(!s||!s.active)return;
+  s.active=false;s.closeReason=reason;
+  const wins=state.history.filter(h=>h.sess===s.id && h.R>0).length;
+  const losses=state.history.filter(h=>h.sess===s.id && h.R<0).length;
+  const verdict=s.pnl>1e-9?'GAIN':(s.pnl<-1e-9?'PERTE':'NEUTRE');
+  state.reports.push({id:s.id,pnl:s.pnl,alloc:s.alloc,trades:s.trades,
+    wins,losses,verdict,mode:s.tutelle,risk:s.profile,reason});
+  const sign=s.pnl>=0?'+':'';
+  alert(s.pnl>=0?'executed':'rejected',
+    `Rapport — session #${s.id} : ${verdict}`,
+    `${sign}${s.pnl.toFixed(2)} $ (${sign}${(s.pnl/s.alloc*100).toFixed(2)} %) · ${s.trades} trades · ${reason}`,
+    s.pnl>=0?'green':'red');
+  renderReports();render();
+}
+function closeSession(id){ endSession(state.sessions.find(x=>x.id===id),'clôture manuelle'); }
+$('pauseBtn').onclick=()=>{state.running=!state.running;render();};
+$('killBtn').onclick=()=>{
+  state.sessions.filter(s=>s.active).forEach(s=>endSession(s,'arrêt d\'urgence'));
+  state.pending.forEach(p=>{if(p.status==='pending')p.status='expired';});
+  state.running=false;
+  alert('rejected','Arrêt d\'urgence','Toutes les sessions clôturées, bot stoppé.','red');
+  render();
+};
+
+/* ---------- décisions ---------- */
+function decide(pid,status){
+  const p=state.pending.find(x=>x.id===pid);if(!p||p.status!=='pending')return;
+  p.status=status;
+  if(status==='approved'){
+    alert('executed',`Exécuté — ${p.pair} ${p.side}`,`${p.units} u envoyés (practice).`,'green');
+    setTimeout(()=>resolveTrade(p),2500+Math.random()*2500);
+  }else{
+    alert('rejected',`Ordre rejeté — ${p.pair}`,'Aucune position ouverte.',null);
+  }
+  render();
+}
+function modify(pid){
+  const p=state.pending.find(x=>x.id===pid);if(!p||p.status!=='pending')return;
+  p.status='modified';
+  const np={...p,id:++state.pid,units:Math.round(p.units*0.7),risk:p.risk*0.7,
+    created:Date.now(),expires:Date.now()+45000,status:'pending'};
+  state.pending.push(np);
+  alert('approval','Proposition modifiée',`Taille réduite, minuteur relancé (45 s).`,'');
+  render();
+}
+function resolveTrade(p){
+  const s=state.sessions.find(x=>x.id===p.sess);if(!s)return;
+  // Probabilité de gain liée à la fiabilité (pour la démo : on suppose qu'une
+  // fiabilité plus haute gagne plus souvent — à PROUVER sur données réelles).
+  const winProb=Math.max(0.2,Math.min(0.62,0.22+(p.conf-0.6)*0.9));
+  const win=Math.random()<winProb;
+  const pnl=win? p.risk*1.9 : -p.risk*1.05;     // gains > pertes (ratio)
+  s.pnl=+(s.pnl+pnl).toFixed(2);s.trades++;
+  state.balance=+(state.balance+pnl).toFixed(2);
+  state.history.push({conf:p.conf,R:win?1.9:-1.05,sess:p.sess});
+  updateLearning();
+  if(s.pnl<=-s.alloc*0.25 && s.active){endSession(s,'perte max de session');}
+  render();
+}
+
+/* ---------- rapports & apprentissage ---------- */
+function renderReports(){
+  const el=$('reports');
+  if(!state.reports.length){el.innerHTML='<div class="empty">Aucune session terminée pour l\'instant.</div>';return;}
+  el.innerHTML=state.reports.slice().reverse().map(r=>{
+    const c=r.verdict==='GAIN'?'var(--green)':r.verdict==='PERTE'?'var(--coral)':'var(--muted)';
+    const sign=r.pnl>=0?'+':'';
+    return `<div class="msg"><span class="dot" style="background:${c}"></span>
+      <div><b>Session #${r.id} — <span style="color:${c}">${r.verdict}</span></b>
+      <div class="cap">${sign}${r.pnl.toFixed(2)} $ (${sign}${(r.pnl/r.alloc*100).toFixed(2)} %) · ${r.wins} gagnés / ${r.losses} perdus · ${r.mode} · ${r.risk}</div></div></div>`;
+  }).join('');
+}
+function updateLearning(){
+  const defs=[['< 70 %',0,0.70],['70–80 %',0.70,0.80],['≥ 80 %',0.80,1.01]];
+  state.bands=defs.map(([label,lo,hi])=>{
+    const rs=state.history.filter(h=>h.conf>=lo&&h.conf<hi).map(h=>h.R);
+    const exp=rs.length?rs.reduce((a,b)=>a+b,0)/rs.length:0;
+    return {label,lo,n:rs.length,exp};
+  });
+  state.learnedMin=0;state.enoughData=false;
+  for(const b of state.bands){ if(b.n>=8 && b.exp>0){state.learnedMin=b.lo;state.enoughData=true;break;} }
+  renderLearning();
+}
+function renderLearning(){
+  const el=$('learning');
+  if(!state.bands || !state.history.length){el.innerHTML='<div class="empty">Pas encore assez de trades pour calibrer.</div>';return;}
+  let html=state.bands.map(b=>{
+    const c=b.n===0?'var(--muted)':(b.exp>0?'var(--green)':'var(--coral)');
+    return `<div class="msg"><div style="flex:1">fiabilité ${b.label}</div>
+      <div class="cap">${b.n} trades</div>
+      <b style="color:${c};min-width:64px;text-align:right">${b.exp>=0?'+':''}${b.exp.toFixed(2)}R</b></div>`;
+  }).join('');
+  html+=`<div class="cap" style="margin-top:10px">${state.enoughData
+    ? '✓ Seuil appris : le bot privilégie les occasions de fiabilité ≥ '+Math.round(state.learnedMin*100)+' % et ignore les moins fiables.'
+    : 'Données encore insuffisantes — le bot n\'apprend pas du bruit. Continuez à faire tourner des sessions.'}</div>`;
+  el.innerHTML=html;
+}
+
+/* ---------- boucle du bot ---------- */
+let lastPropose=0;
+setInterval(()=>{
+  const now=Date.now();
+  // expiration des validations (inaction = sûr)
+  state.pending.forEach(p=>{
+    if(p.status==='pending' && now>=p.expires){p.status='expired';
+      alert('expired',`Proposition expirée — ${p.pair}`,'Non validée à temps : aucune action.',null);}
+  });
+  // décrément du temps des sessions
+  if(now%60000<1000){state.sessions.forEach(s=>{if(s.active){s.minsLeft--;if(s.minsLeft<=0)closeSession(s.id);}});}
+  // génération de propositions
+  if(state.running && now-lastPropose>5500){
+    lastPropose=now;
+    const act=state.sessions.filter(s=>s.active);
+    const pendCount=state.pending.filter(p=>p.status==='pending').length;
+    if(act.length && pendCount<4 && Math.random()<0.8){
+      const s=act[Math.floor(Math.random()*act.length)];
+      const conf=+(0.6+Math.random()*0.32).toFixed(2);
+      // Sélectivité apprise : sous le seuil calibré, le bot se retire.
+      if(state.learnedMin && conf<state.learnedMin){
+        renderApprovals(now);renderHead();renderSessions();return;
+      }
+      const caution=Math.random()<0.75?1.0:0.8;
+      const eq=s.alloc+s.pnl;
+      const risk=+(eq*(s.profile==='Agressif'?0.015:s.profile==='Doux'?0.01:0.005)*caution).toFixed(2);
+      const p={id:++state.pid,sess:s.id,pair:PAIRS[Math.floor(Math.random()*2)],
+        side:Math.random()<0.5?'achat':'vente',units:Math.round(risk*900),risk,
+        gain:+(risk*1.9).toFixed(2),conf,caution,
+        created:now,expires:now+45000,status:'pending'};
+      // tutelle AUTO : auto-approbation si critères réunis
+      const cap=AUTO_CAP[s.profile]||0.5, riskPct=risk/eq*100;
+      if(s.tutelle==='auto' && conf>=0.75 && caution>=1.0 && riskPct<=cap){
+        p.status='approved';state.pending.push(p);
+        alert('executed',`Le bot a saisi une occasion — ${p.pair}`,`Session #${s.id} · gain visé +${p.gain} $ (mode auto).`,'green');
+        setTimeout(()=>resolveTrade(p),2500+Math.random()*2500);
+      }else{
+        state.pending.push(p);
+        alert('approval',`Occasion de profit — ${p.pair}`,`Session #${s.id} · gain visé +${p.gain} $ · Oui ou Non sous 45 s.`,'');
+      }
+    }
+  }
+  renderApprovals(now);renderHead();renderSessions();
+},1000);
+
+$('themeBtn').onclick=()=>{const r=document.documentElement;
+  r.setAttribute('data-theme',r.getAttribute('data-theme')==='dark'?'light':'dark');};
+render();
+</script>
+</body>
+</html>
