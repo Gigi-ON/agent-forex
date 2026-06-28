@@ -27,7 +27,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from session import SessionManager, Tutelle
+from session import SessionManager, Tutelle, SessionState
 from risk_manager import Profile
 from supervisor import Supervisor
 from journal import Trade, JournalStore
@@ -108,6 +108,31 @@ class PaperEngine:
         self._log("session", "Session clôturée #%s (%s)" % (session_id, reason))
         return self.manager.close_session(session_id, reason=reason)
 
+    def pause_session(self, session_id):
+        s = self.manager.sessions.get(session_id)
+        if s and s.state == SessionState.ACTIVE:
+            s.paused = True
+            self._log("session", "Session #%s en pause" % session_id)
+        return s
+
+    def resume_session(self, session_id):
+        s = self.manager.sessions.get(session_id)
+        if s:
+            s.paused = False
+            self._log("session", "Session #%s reprise" % session_id)
+        return s
+
+    def stop_session(self, session_id, market=None, now=None):
+        """Stop = clôture immédiate des positions de la session (flatten) + fin de session."""
+        now = now or _now()
+        for pos in list(self.positions.values()):
+            if pos.session_id == session_id:
+                m = (market or {}).get(pos.pair)
+                price = float(m["price"]) if (m and m.get("price") is not None) else pos.entry_price
+                self._close(pos, price, "STOP", now)
+        self.close_session(session_id, reason="arrêt manuel")
+        return self.snapshot(now)
+
     # -- propositions (manuel / semi-auto / auto) ---------------------------
     def decide(self, pending_id, action, now=None):
         """Décision humaine : 'approve' ou 'reject'. Clic toujours possible."""
@@ -145,6 +170,8 @@ class PaperEngine:
             for session in list(self.manager.active):
                 if not self._can_open_more():
                     break
+                if getattr(session, "paused", False):
+                    continue
                 pairs = [session.instrument] if getattr(session, "instrument", None) else list(market.keys())
                 for pair in pairs:
                     if not self._can_open_more():
@@ -314,6 +341,7 @@ class PaperEngine:
                 "risk_level": s.risk_level,
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
                 "instrument": getattr(s, "instrument", None),
+                "paused": getattr(s, "paused", False),
                 "state": s.state.value if hasattr(s.state, "value") else s.state,
             } for s in self.manager.sessions.values()],
             "pending": [{
@@ -356,7 +384,7 @@ class PaperEngine:
                 "state": s.state.value if hasattr(s.state, "value") else s.state,
                 "realized_pnl": s.realized_pnl, "trades": s.trades,
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
-                "instrument": s.instrument,
+                "instrument": s.instrument, "paused": getattr(s, "paused", False),
             } for s in self.manager.sessions.values()],
             "positions": [dict(vars(pos)) for pos in self.positions.values()],
             "running": self.running,
@@ -389,6 +417,7 @@ class PaperEngine:
             s.accept_min = sd.get("accept_min")
             s.accept_max = sd.get("accept_max")
             s.instrument = sd.get("instrument")
+            s.paused = sd.get("paused", False)
             self.manager.sessions[s.id] = s
         self.positions = {}
         self._has_pos = set()

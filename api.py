@@ -550,3 +550,25 @@ def paper_kill(user=Depends(require_user)):
     with _paper_lock:
         _paper.kill(_gather_market()); _save_paper()
     return {"ok": True, "running": _paper.running}
+
+
+@app.post("/api/paper/session/pause")
+def paper_session_pause(body: dict = Body(...), user=Depends(require_user)):
+    with _paper_lock:
+        _paper.pause_session(body.get("session_id")); _save_paper()
+    return {"ok": True}
+
+
+@app.post("/api/paper/session/resume")
+def paper_session_resume(body: dict = Body(...), user=Depends(require_user)):
+    with _paper_lock:
+        _paper.resume_session(body.get("session_id")); _save_paper()
+    return {"ok": True}
+
+
+@app.post("/api/paper/session/stop")
+def paper_session_stop(body: dict = Body(...), user=Depends(require_user)):
+    """Stop session : flatten des positions au prix courant + clôture."""
+    with _paper_lock:
+        _paper.stop_session(body.get("session_id"), _gather_market()); _save_paper()
+    return {"ok": True}

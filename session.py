@@ -52,6 +52,7 @@ class Session:
     accept_min: float = None             # bande d'auto-validation (§ intervalle)
     accept_max: float = None             # min<=confiance<=max -> auto ; sinon attente->inaction
     instrument: str = None               # nom OANDA (ex EUR_USD) ; None = config.INSTRUMENTS
+    paused: bool = False                 # pause par session : gèle les nouvelles entrées
     started: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     state: SessionState = SessionState.ACTIVE
