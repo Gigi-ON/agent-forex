@@ -49,6 +49,8 @@ class Session:
     tutelle: Tutelle
     duration_min: int
     risk_level: str = "reserve"          # utilisé en mode AUTO
+    accept_min: float = None             # bande d'auto-validation (§ intervalle)
+    accept_max: float = None             # min<=confiance<=max -> auto ; sinon attente->inaction
     started: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     state: SessionState = SessionState.ACTIVE

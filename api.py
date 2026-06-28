@@ -123,3 +123,242 @@ def signals():
         return _memo("signals", 30, produce)
     except Exception as e:
         return {"error": "signaux indisponibles", "detail": str(e)}
+
+
+# ===========================================================================
+# Endpoints analytiques en LECTURE SEULE (Tier 1)
+# Journal / apprentissage / maîtrise lisent le journal SQLite réel
+# (vides tant qu'aucun trade clôturé). Backtest tourne sur les cours en cache.
+# ===========================================================================
+
+def _clean(obj):
+    """Rend une structure JSON-safe (remplace inf/nan par None)."""
+    import math
+    if isinstance(obj, float):
+        return None if (math.isinf(obj) or math.isnan(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _clean(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_clean(v) for v in obj]
+    return obj
+
+
+def _closed_trades():
+    from journal import JournalStore
+    js = JournalStore()
+    try:
+        return js.closed_trades()
+    finally:
+        js.close()
+
+
+@app.get("/api/journal")
+def journal():
+    """Post-mortem du journal réel. Vide (trades=0) tant qu'aucun trade clôturé."""
+    from dataclasses import asdict
+    from journal import analyze
+    try:
+        trades = _closed_trades()
+        pm = analyze(trades)
+        d = asdict(pm)
+        d["win_rate"] = pm.win_rate
+        recent = [{
+            "pair": t.pair, "side": t.side, "r": t.r_multiple,
+            "pnl": round(t.pnl, 2), "exit_reason": t.exit_reason,
+            "outcome": t.outcome, "entry_time": t.entry_time,
+        } for t in trades[-20:]]
+        return _clean({"post_mortem": d, "recent": recent})
+    except Exception as e:
+        return {"error": "journal indisponible", "detail": str(e)}
+
+
+@app.get("/api/learning")
+def learning():
+    """Calibration par tranche de fiabilité (apprentissage)."""
+    from learning import calibrate
+    try:
+        cal = calibrate(_closed_trades())
+        return _clean({
+            "bands": [{"label": l, "n": n, "expectancy_R": e} for (l, n, e) in cal.bands],
+            "recommended_min_confidence": cal.recommended_min_confidence,
+            "enough_data": cal.enough_data, "note": cal.note,
+        })
+    except Exception as e:
+        return {"error": "calibration indisponible", "detail": str(e)}
+
+
+@app.get("/api/mastery")
+def mastery():
+    """Verdict de la campagne de maîtrise 30 j (go/no-go) sur le journal réel."""
+    from dataclasses import asdict
+    from market_mastery import evaluate
+    try:
+        trades = _closed_trades()
+        base = 5000.0
+        eq = [base]
+        for t in trades:
+            base += t.pnl
+            eq.append(round(base, 2))
+        v = evaluate(trades, eq)
+        return _clean({"verdict": asdict(v)})
+    except Exception as e:
+        return {"error": "maîtrise indisponible", "detail": str(e)}
+
+
+@app.get("/api/backtest")
+def backtest_ep(pair: str = "EUR_USD", gran: str = "M15"):
+    """Backtest + test de robustesse sur les cours en cache (données riches immédiates)."""
+    from backtest import Backtester, robustness_report
+    try:
+        od = _data()
+        candles = od.get_history(pair, gran)
+        n = len(candles) if candles else 0
+        if n < 60:
+            return {"error": "historique insuffisant",
+                    "detail": f"{n} bougies en cache pour {pair} {gran}. "
+                              "Lancez la collecte d'historique (research_timeframe.py ou les routines)."}
+        bt = Backtester()
+        r = bt.run(pair, candles)
+        return _clean({
+            "pair": pair, "granularity": gran, "candles": n,
+            "result": {
+                "start_equity": r.start_equity, "end_equity": r.end_equity,
+                "return_pct": r.return_pct, "win_rate": r.win_rate,
+                "profit_factor": r.profit_factor, "trades": r.trades,
+                "wins": r.wins, "losses": r.losses,
+                "max_drawdown_pct": r.max_drawdown_pct, "equity_curve": r.equity_curve,
+            },
+            "robustness": robustness_report(pair, candles),
+        })
+    except Exception as e:
+        return {"error": "backtest indisponible", "detail": str(e)}
+
+
+# ===========================================================================
+# Service PAPER-TRADING (Tier 2) — état persistant, exécutions simulées
+# Signaux réels -> propositions supervisées (intervalle d'acceptation §10) ->
+# positions papier suivies contre les prix réels -> trades journalisés.
+# AUCUN ordre OANDA. Les écritures exigent une session Supabase valide.
+# ===========================================================================
+import json as _json
+import threading as _threading
+import time as _time
+from pathlib import Path as _Path
+from fastapi import Body, Header, HTTPException, Depends
+
+from paper_engine import PaperEngine
+from journal import JournalStore
+from risk_manager import Profile
+
+_PAPER_STATE = _Path(__file__).parent / "data" / "paper_state.json"
+_paper_lock = _threading.Lock()
+_paper = PaperEngine(starting_balance=5000.0, journal_store=JournalStore())
+try:
+    _paper.load_state(_json.loads(_PAPER_STATE.read_text()))
+except Exception:
+    pass
+
+
+def _save_paper():
+    try:
+        _PAPER_STATE.parent.mkdir(parents=True, exist_ok=True)
+        _PAPER_STATE.write_text(_json.dumps(_paper.to_state()))
+    except Exception:
+        pass
+
+
+def _gather_market():
+    od = _data()
+    market = {}
+    for pair in config.INSTRUMENTS:
+        try:
+            candles = od.get_history(pair, "M15")
+            px = od.get_latest(pair)
+            price = (px["bid"] + px["ask"]) / 2.0
+            q2a, b2a = od.conversion_rates(pair)
+            market[pair] = {"candles": candles, "price": price,
+                            "news": [], "q2a": q2a, "b2a": b2a}
+        except Exception:
+            continue
+    return market
+
+
+def _tick_loop():
+    while True:
+        try:
+            m = _gather_market()
+            if m:
+                with _paper_lock:
+                    _paper.tick(m)
+                    _save_paper()
+        except Exception:
+            pass
+        _time.sleep(15)
+
+
+@app.on_event("startup")
+def _start_paper():
+    t = _threading.Thread(target=_tick_loop, daemon=True)
+    t.start()
+
+
+# -- auth : exige une session Supabase valide pour les écritures ------------
+_SB_URL = os.environ.get("SUPABASE_URL", "https://qdhnnsipwnogecrptxfk.supabase.co")
+_SB_ANON = os.environ.get("SUPABASE_ANON_KEY", "")
+_REQUIRE_AUTH = os.environ.get("PAPER_REQUIRE_AUTH", "true").lower() == "true"
+
+
+def require_user(authorization: str = Header(default="")):
+    if not _REQUIRE_AUTH:
+        return "dev"
+    token = authorization.replace("Bearer ", "").strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentification requise.")
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            f"{_SB_URL}/auth/v1/user",
+            headers={"Authorization": f"Bearer {token}", "apikey": _SB_ANON})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return _json.load(r).get("id")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Session invalide.")
+
+
+# -- endpoints LECTURE -----------------------------------------------------
+@app.get("/api/paper")
+def paper_state():
+    """État courant du paper-trading : solde, sessions, propositions, positions."""
+    with _paper_lock:
+        return _clean(_paper.snapshot())
+
+
+# -- endpoints ÉCRITURE (auth requise) -------------------------------------
+@app.post("/api/paper/session")
+def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
+    try:
+        budget = float(body.get("budget", 0))
+        s = _paper.open_session(
+            budget=budget,
+            accept_min=body.get("accept_min"), accept_max=body.get("accept_max"),
+            profile=Profile(body.get("profile", "reserve")),
+            risk_level=body.get("risk_level", "reserve"),
+            duration_min=int(body.get("duration_min", 240)))
+        _save_paper()
+        return {"ok": True, "session_id": s.id}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/paper/decide")
+def paper_decide(body: dict = Body(...), user=Depends(require_user)):
+    p = _paper.decide(body.get("pending_id"), body.get("action"))
+    _save_paper()
+    return {"ok": p is not None}
+
+
+@app.post("/api/paper/session/close")
+def paper_close_session(body: dict = Body(...), user=Depends(require_user)):
+    _paper.close_session(body.get("session_id"))
+    _save_paper()
+    return {"ok": True}

@@ -96,7 +96,7 @@ class Supervisor:
         self.pending[p.id] = p
 
         # AUTO : peut-on auto-approuver ?
-        if session.tutelle == Tutelle.AUTO and self._auto_ok(session, p):
+        if self._auto_ok(session, p):
             self.approve(p.id, now, auto=True)
             return p
 
@@ -112,9 +112,16 @@ class Supervisor:
         return p
 
     def _auto_ok(self, session, p: Pending) -> bool:
+        # Auto-validation pilotee par la BANDE D'ACCEPTATION de la session :
+        #   min <= confiance <= max  ET prudence macro pleine ET risque sous le
+        #   sous-plafond. Sans bande definie -> jamais d'auto (mode manuel).
+        lo = getattr(session, "accept_min", None)
+        hi = getattr(session, "accept_max", None)
+        if lo is None or hi is None:
+            return False
         cap = AUTO_RISK_CAP.get(session.risk_level, 0.5)
         risk_pct = p.risk / session.equity * 100 if session.equity else 99
-        return (p.confidence >= AUTO_MIN_CONFIDENCE
+        return (lo <= p.confidence <= hi
                 and p.caution >= 1.0
                 and risk_pct <= cap)
 
