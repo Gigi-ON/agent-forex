@@ -355,8 +355,8 @@
     <div class="acct">
       <div class="row"><span>Solde commun</span><b id="acctBal">5 000 $</b></div>
       <div class="row"><span>Disponible</span><b id="acctAvail">5 000 $</b></div>
-      <div class="row"><span>Statut</span><b><span class="dot"></span> Practice</b></div>
-      <div class="row"><span>Devise</span><b>CAD</b></div>
+      <div class="row"><span>Statut</span><b id="acctStatus"><span class="dot"></span> Practice</b></div>
+      <div class="row"><span>Devise</span><b id="acctCcy">CAD</b></div>
       <div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px">
         <span id="userEmail" style="font-size:12px">—</span>
         <a id="signout" style="color:var(--blue);cursor:pointer;font-weight:600;font-size:12px">Déconnexion</a></div>
@@ -806,7 +806,9 @@
   const money=v=>Math.round(v).toLocaleString('fr-CA')+' $';
   const PAIRS=['EUR/USD','EUR/CAD'],AUTO_CAP={'Réservé':0.5,'Doux':1.0,'Agressif':1.5};
   let state={balance:5000,sessions:[],pending:[],running:true,tutelle:'manuel',sid:0,pid:0,
-    inbox:[],history:[],reports:[],learnedMin:0,bands:null,enoughData:false};
+    appMode:'pratique',inbox:[],history:[],reports:[],learnedMin:0,bands:null,enoughData:false};
+  // Phase 1 — instantané du compte renvoyé par l'API (compte démo OANDA pour l'instant).
+  let LIVE={account:null,status:null};
   const reserved=()=>state.sessions.filter(s=>s.active).reduce((a,s)=>a+s.alloc,0);
   const available=()=>state.balance-reserved();
   const activeCount=()=>state.sessions.filter(s=>s.active).length;
@@ -824,8 +826,38 @@
   }
   side.querySelectorAll('.nav[data-view]').forEach(n=>n.addEventListener('click',()=>showView(n.dataset.view)));
 
-  /* solde partagé (bonification : la barre latérale reflète l'activité du bot) */
-  function renderShared(){$('acctBal').textContent=money(state.balance);$('acctAvail').textContent=money(available());}
+  /* ============ CARTE COMPTE PILOTÉE PAR LE MODE (Phase 1) ============ */
+  // La barre latérale (Solde commun / Disponible / Statut / Devise) reflète le
+  // mode sélectionné, alimentée par l'API. Pratique & Apprentissage = compte
+  // démo OANDA (vraies données). Réel = non configuré pour l'instant (pas de
+  // compte live). Hors ligne = état dégradé, jamais un faux 5 000 $.
+  function setStatus(txt,color){
+    const el=$('acctStatus'); if(!el)return;
+    const C={green:'var(--green)',blue:'var(--blue)',red:'var(--coral)',amber:'var(--amber)',muted:'var(--muted)'};
+    el.innerHTML='<span class="dot" style="background:'+(C[color]||C.muted)+'"></span> '+txt;
+  }
+  function renderAccountCard(){
+    const fmt=(v,c)=>Math.round(v).toLocaleString('fr-CA')+' '+(c||'$');
+    const m=state.appMode||'pratique';
+    const acc=LIVE.account, online=acc&&!acc.error;
+    if(m==='reel'){
+      $('acctBal').textContent='—';$('acctAvail').textContent='—';
+      setStatus('Réel — compte non configuré','red');return;
+    }
+    if(!online){
+      $('acctBal').textContent='—';$('acctAvail').textContent='—';
+      setStatus('API hors ligne','muted');return;
+    }
+    const ccy=acc.currency||'';
+    const avail=Math.max(0,acc.balance-reserved());
+    $('acctBal').textContent=fmt(acc.balance,ccy);
+    $('acctAvail').textContent=fmt(avail,ccy);
+    if($('acctCcy'))$('acctCcy').textContent=ccy||'—';
+    setStatus(m==='apprentissage'?'Apprentissage — maîtrise 30 j (démo)':'Practice — démo',
+              m==='apprentissage'?'blue':'green');
+  }
+  // Conservé pour les nombreux appelants existants ; délègue à la carte mode.
+  function renderShared(){renderAccountCard();}
 
   function renderBotHead(){
     $('orb').className='orb '+(state.running?'run':'paused');
@@ -958,7 +990,7 @@
       m==='reel'?'Argent réel — exécution soumise au verrou serveur LIVE_TRADING.'
       :(m==='apprentissage'?'Forward-test 30 j sur cours réels, capital fictif.':'Exploration libre, aucun risque réel.'),
       m==='reel'?'red':'');
-    renderLock();
+    renderLock();renderAccountCard();
   }
   $('modeSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;const m=b.dataset.m;
     if(m===state.appMode)return;
@@ -1006,6 +1038,8 @@
   async function refreshLive(){
     try{
       const [st,acc,sg]=await Promise.all([API('/api/status'),API('/api/account'),API('/api/signals')]);
+      // mémoriser l'instantané pour la carte compte pilotée par le mode
+      LIVE.status=(st&&!st.error)?st:null; LIVE.account=(acc&&!acc.error)?acc:null; renderAccountCard();
       // verrou alimenté par l'état serveur réel
       if(st&&!st.error){SERVER.liveTrading=!!st.live_trading;SERVER.oandaEnv=st.environment||'practice';renderLock();}
       // compte
@@ -1027,6 +1061,7 @@
         return `<div class="msg"><b style="min-width:78px">${s.instrument.replace('_','/')}</b> ${tag} ${det} ${px}</div>`;
       }).join('');
     }catch(e){
+      LIVE.account=null;LIVE.status=null;renderAccountCard();
       $('liveDot').textContent='○ API hors ligne';$('liveDot').style.color='var(--muted)';
       $('liveNote').textContent="API non joignable (normal dans l'aperçu local). Les chiffres réels s'afficheront une fois l'API lancée sur le VPS. La simulation ci-dessous reste active.";
       if(!$('liveSignals').children.length)$('liveSignals').innerHTML='<div class="empty">Signaux réels indisponibles hors connexion.</div>';
