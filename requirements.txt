@@ -4,3 +4,6 @@ python-dotenv>=1.0      # charge .env en dev local (sans effet en prod)
 # Couche news (optionnel, requis seulement pour les sources live) :
 feedparser>=6.0         # flux RSS des médias / orgs officielles
 requests>=2.28          # API Bluesky publique, calendrier économique, Frankfurter
+# Couche API (requis seulement pour servir le dashboard via api.py) :
+fastapi>=0.110          # API GET lecture seule (status/account/signals)
+uvicorn[standard]>=0.29 # serveur ASGI lancé par le service systemd
