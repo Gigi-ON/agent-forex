@@ -372,6 +372,7 @@
     <div class="nav" data-view="backtest"><span class="ic">▦</span> Backtest</div>
     <div class="nav" data-view="maitrise"><span class="ic">◎</span> Maîtrise 30 j</div>
     <div class="nav" data-view="prudence"><span class="ic">◴</span> Prudence macro</div>
+    <div class="nav" data-view="activite"><span class="ic">≡</span> Activité</div>
     <div class="acct">
       <div class="row"><span>Solde commun</span><b id="acctBal">5 000 $</b></div>
       <div class="row"><span>Disponible</span><b id="acctAvail">5 000 $</b></div>
@@ -401,6 +402,7 @@
           <button data-m="reel">Réel</button>
         </div>
         <span class="badge amber" id="modeBadge">● Pratique — argent fictif</span>
+        <span class="badge" id="sysStatus">○ moteur…</span>
         <button class="btn" id="themeBtn">◐ Thème</button>
       </div>
     </div>
@@ -814,6 +816,10 @@
       <div class="card"><h3>Prudence macro</h3><div class="cap" style="margin:3px 0 12px">Modulation par l'actualité et blackouts autour des annonces.</div>
         <div id="pgPrudence"><div class="cap">Chargement…</div></div></div>
     </section>
+    <section class="view" id="view-activite">
+      <div class="card"><h3>Journal d'activité</h3><div class="cap" style="margin:3px 0 12px">Trace auditable : propositions, validations, clôtures, garde-fous, système.</div>
+        <div id="pgActivite"><div class="cap">Chargement…</div></div></div>
+    </section>
   </main>
   <div class="scrim" id="scrim"></div>
   <div class="toasts" id="toasts"></div>
@@ -895,6 +901,7 @@
     backtest:['Backtest','Robustesse sous friction et par segments'],
     maitrise:['Maîtrise 30 j','Verdict go/no-go vers le réel'],
     prudence:['Prudence macro','Actualité et blackouts'],
+    activite:['Activité','Journal d\'audit · statut du moteur'],
     bot:['Bot sous tutelle','Cours réels · capital fictif · validation 30 jours']};
   function showView(v){
     if(!TITLES[v])v='apercu';
@@ -1397,7 +1404,26 @@
       +_row('<b>État</b><span class="cap">aucun blackout actif détecté</span><span style="margin-left:auto" class="up">prudence nominale</span>');
   }
 
-  const PAGE_RENDER={signaux:renderSignauxPage,risque:renderRisquePage,historique:renderHistoriquePage,backtest:renderBacktestPage,maitrise:renderMaitrisePage,prudence:renderPrudencePage};
+  function renderSys(){
+    const el=$('sysStatus'); if(!el)return;
+    const lt=(typeof PAPER!=="undefined"&&PAPER.last_tick)?new Date(PAPER.last_tick):null;
+    if(!lt){ el.textContent="○ moteur en attente"; el.style.color="var(--muted)"; return; }
+    const age=Math.max(0,Math.round((Date.now()-lt.getTime())/1000));
+    const paused=(PAPER.running===false), ok=(age<60 && !paused);
+    el.textContent=(ok?"● ":"○ ")+"moteur "+(paused?"en pause":"actif")+" · tick il y a "+age+"s";
+    el.style.color=ok?"var(--green)":(age>=60?"var(--coral)":"var(--amber)");
+  }
+  setInterval(renderSys,1000);
+  async function renderActivitePage(){
+    const el=$('pgActivite'); if(!el)return;
+    let d; try{ d=await API("/api/activity"); }catch(e){ el.innerHTML='<div class="cap">API indisponible.</div>'; return; }
+    const acts=(d&&d.activity)||[], lt=(d&&d.last_tick)?new Date(d.last_tick):null;
+    let head='<div class="cap" style="margin-bottom:10px">Moteur '+(d.running===false?"en pause":"actif")+(lt?(" · dernier tick "+lt.toLocaleTimeString("fr-CA")):"")+'</div>';
+    if(!acts.length){ el.innerHTML=head+'<div class="cap">Aucune activité pour l’instant.</div>'; return; }
+    const ico={session:"▦",position:"↗",trade:"≣","garde-fou":"⚠","système":"⚙",executed:"✓",approval:"?",rejected:"✕",expired:"⌛"};
+    el.innerHTML=head+acts.map(function(a){ const t=new Date(a.ts); return '<div style="display:flex;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)"><span class="cap" style="min-width:64px">'+t.toLocaleTimeString("fr-CA")+'</span><span style="width:16px;text-align:center">'+(ico[a.kind]||"•")+'</span><span>'+a.msg+'</span></div>'; }).join("");
+  }
+  const PAGE_RENDER={signaux:renderSignauxPage,risque:renderRisquePage,historique:renderHistoriquePage,backtest:renderBacktestPage,maitrise:renderMaitrisePage,prudence:renderPrudencePage,activite:renderActivitePage};
   side.querySelectorAll('.nav[data-view]').forEach(function(n){ n.addEventListener('click',function(){ const v=n.dataset.view; if(PAGE_RENDER[v]) PAGE_RENDER[v](); }); });
 
 </script>

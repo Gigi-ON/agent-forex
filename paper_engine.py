@@ -74,10 +74,13 @@ class PaperEngine:
                  engine=None, modulator=None):
         self.manager = SessionManager(starting_balance)
         self.journal = journal_store or JournalStore()
-        # Le superviseur ne journalise PAS à l'ouverture (journal=None) :
-        # le moteur journalise à la CLÔTURE (trade complet avec P&L).
+        self.activity = []           # journal d'activité (audit)
+        self.last_tick = None        # battement de cœur (ISO)
+        self._halt_logged = False
+        # Le superviseur ne journalise PAS à l'ouverture (journal=None) ;
+        # son alert_sink=self alimente le journal d'activité.
         self.supervisor = Supervisor(self.manager, journal_store=None,
-                                     engine=engine, modulator=modulator)
+                                     alert_sink=self, engine=engine, modulator=modulator)
         self.positions = {}          # id -> PaperPosition (ouvertes)
         self._has_pos = set()        # pending_ids déjà transformés en position
         # --- garde-fous (Phase A) ---
@@ -98,9 +101,11 @@ class PaperEngine:
         s.accept_min = accept_min
         s.accept_max = accept_max
         s.instrument = instrument
+        self._log("session", "Session ouverte #%s · %d$%s" % (s.id, int(budget), (" · " + instrument) if instrument else ""))
         return s
 
     def close_session(self, session_id, reason="clôture manuelle"):
+        self._log("session", "Session clôturée #%s (%s)" % (session_id, reason))
         return self.manager.close_session(session_id, reason=reason)
 
     # -- propositions (manuel / semi-auto / auto) ---------------------------
@@ -127,7 +132,11 @@ class PaperEngine:
         pause), seules les NOUVELLES propositions sont bloquées.
         """
         now = now or _now()
+        self.last_tick = now.isoformat()
         self._roll_day(now)
+        if self.daily_halted and not self._halt_logged:
+            self._log("garde-fou", "Coupe-circuit journalier : nouvelles entrées bloquées")
+            self._halt_logged = True
         self.supervisor.sweep(now)
         self.manager.sweep_expired(now)
         self._update_positions(market, now)
@@ -157,6 +166,7 @@ class PaperEngine:
             self._day = d
             self._day_pnl = 0.0
             self._day_start_balance = self.manager.balance
+            self._halt_logged = False
 
     @property
     def daily_halted(self):
@@ -203,9 +213,11 @@ class PaperEngine:
 
     def pause(self):
         self.running = False
+        self._log("système", "Pause du moteur")
 
     def resume(self):
         self.running = True
+        self._log("système", "Reprise du moteur")
 
     def kill(self, market=None, now=None):
         """Arrêt d'urgence : ferme toutes les positions au prix courant, stoppe le moteur."""
@@ -216,6 +228,7 @@ class PaperEngine:
                 price = float(m["price"]) if (m and m.get("price") is not None) else pos.entry_price
                 self._close(pos, price, "KILL", now)
         self.running = False
+        self._log("système", "Arrêt d'urgence — positions fermées")
         return self.snapshot(now)
 
     # -- transforme les propositions approuvées en positions papier ---------
@@ -233,6 +246,7 @@ class PaperEngine:
                     caution=p.caution,
                     entry_time=now.strftime("%Y-%m-%dT%H:%M:%SZ"))
                 self.positions[pos.id] = pos
+                self._log("position", "Position ouverte %s %s" % (pos.pair, pos.side))
 
     def _update_positions(self, market, now):
         for pos in list(self.positions.values()):
@@ -278,6 +292,7 @@ class PaperEngine:
             notes=f"paper session={pos.session_id}"))
         self.manager.record_trade_pnl(pos.session_id, pnl)
         self._day_pnl += pnl
+        self._log("trade", "%s %s · %+.2f$" % (pos.pair, reason, pnl))
         self.positions.pop(pos.id, None)
 
     # -- vue pour l'API ------------------------------------------------------
@@ -291,6 +306,7 @@ class PaperEngine:
             "daily_halted": self.daily_halted,
             "day_pnl": round(self._day_pnl, 2),
             "open_risk": round(self._open_risk(), 2),
+            "last_tick": self.last_tick,
             "sessions": [{
                 "id": s.id, "allocated": s.allocated, "equity": s.equity,
                 "realized_pnl": s.realized_pnl, "trades": s.trades,
@@ -315,6 +331,16 @@ class PaperEngine:
             } for pos in self.positions.values()],
         }
 
+    # -- journal d'activité --------------------------------------------------
+    def _log(self, kind, msg):
+        self.activity.append({"ts": _now().isoformat(), "kind": kind, "msg": msg})
+        if len(self.activity) > 200:
+            self.activity = self.activity[-200:]
+
+    def emit(self, alert):
+        """Reçoit les évènements du superviseur (proposition/validation/expiration)."""
+        self._log(getattr(alert, "kind", "info"), getattr(alert, "title", ""))
+
     # -- persistance (survie aux redémarrages) ------------------------------
     def to_state(self):
         """Sérialise l'état durable (solde, sessions, positions ouvertes).
@@ -337,6 +363,8 @@ class PaperEngine:
             "day": self._day.isoformat() if self._day else None,
             "day_pnl": self._day_pnl,
             "day_start_balance": self._day_start_balance,
+            "activity": self.activity[-200:],
+            "last_tick": self.last_tick,
         }
 
     def load_state(self, d):
@@ -376,3 +404,5 @@ class PaperEngine:
             self._day = None
         self._day_pnl = d.get("day_pnl", 0.0)
         self._day_start_balance = d.get("day_start_balance", self.manager.balance)
+        self.activity = d.get("activity", [])
+        self.last_tick = d.get("last_tick")

@@ -322,10 +322,9 @@ def _tick_loop():
     while True:
         try:
             m = _gather_market()
-            if m:
-                with _paper_lock:
-                    _paper.tick(m)
-                    _save_paper()
+            with _paper_lock:
+                _paper.tick(m)   # toujours : maj du heartbeat + expirations
+                _save_paper()
         except Exception:
             pass
         _time.sleep(15)
@@ -448,6 +447,14 @@ def crypto_prices():
 
 
 # -- endpoints LECTURE -----------------------------------------------------
+@app.get("/api/activity")
+def activity():
+    """Journal d'activité (audit) : propositions, validations, clôtures, garde-fous."""
+    with _paper_lock:
+        return _clean({"activity": list(reversed(_paper.activity[-100:])),
+                       "last_tick": _paper.last_tick, "running": _paper.running})
+
+
 @app.get("/api/paper")
 def paper_state():
     """État courant du paper-trading : solde, sessions, propositions, positions."""
