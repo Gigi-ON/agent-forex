@@ -352,6 +352,38 @@ def require_user(authorization: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Session invalide.")
 
 
+# -- statut du marché forex -------------------------------------------------
+def _forex_next_open(now):
+    from datetime import timedelta
+    wd = now.weekday()
+    cand = (now + timedelta(days=(6 - wd) % 7)).replace(hour=21, minute=0, second=0, microsecond=0)
+    if cand <= now:
+        cand = cand + timedelta(days=7)
+    return cand
+
+
+def _forex_closes_at(now):
+    from datetime import timedelta
+    wd = now.weekday()
+    cand = (now + timedelta(days=(4 - wd) % 7)).replace(hour=21, minute=0, second=0, microsecond=0)
+    if cand <= now:
+        cand = cand + timedelta(days=7)
+    return cand
+
+
+@app.get("/api/market")
+def market_status():
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    is_open = _paper._forex_open(now)
+    return {
+        "forex_open": is_open,
+        "next_open": None if is_open else _forex_next_open(now).isoformat(),
+        "closes_at": _forex_closes_at(now).isoformat() if is_open else None,
+        "server_utc": now.isoformat(),
+    }
+
+
 # -- endpoints LECTURE -----------------------------------------------------
 @app.get("/api/paper")
 def paper_state():
@@ -365,6 +397,13 @@ def paper_state():
 def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
     try:
         budget = float(body.get("budget", 0))
+        asset = body.get("asset", "forex")
+        if asset == "forex":
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            if not _paper._forex_open(now):
+                return {"error": "Le marché forex est fermé.",
+                        "next_open": _forex_next_open(now).isoformat()}
         with _paper_lock:
             s = _paper.open_session(
                 budget=budget,
