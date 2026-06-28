@@ -1153,6 +1153,24 @@
     refreshPaper();
   }; })();
   refreshPaper(); setInterval(refreshPaper, 8000);
+  (function(){
+    const pb=$('pauseBtn'); if(pb) pb.onclick=async function(){
+      const running=PAPER.running!==false; const h=await authHeaders();
+      await fetch('/api/paper/'+(running?'pause':'resume'),{method:'POST',headers:h}).catch(function(){});
+      refreshPaper();
+    };
+    const kb=$('killBtn'); if(kb) kb.onclick=async function(){
+      if(!confirm("Arrêt d'urgence : fermer toutes les positions papier et stopper le moteur ?"))return;
+      const h=await authHeaders();
+      await fetch('/api/paper/kill',{method:'POST',headers:h}).catch(function(){});
+      refreshPaper();
+    };
+    const _orh=renderBotHead;
+    renderBotHead=function(){ try{_orh();}catch(e){}
+      const pb2=$('pauseBtn'); if(pb2&&PAPER) pb2.textContent=(PAPER.running===false?'▶ Reprendre':'⏸ Pause');
+      const o=$('orb'); if(o&&PAPER) o.className='orb '+(PAPER.running===false?'paused':'run');
+    };
+  })();
 
 </script>
 </body>

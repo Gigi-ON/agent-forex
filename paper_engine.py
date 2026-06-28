@@ -80,6 +80,13 @@ class PaperEngine:
                                      engine=engine, modulator=modulator)
         self.positions = {}          # id -> PaperPosition (ouvertes)
         self._has_pos = set()        # pending_ids déjà transformés en position
+        # --- garde-fous (Phase A) ---
+        self.running = True          # pause / kill-switch -> stoppe les NOUVELLES propositions
+        self._day = None             # date UTC courante (coupe-circuit journalier)
+        self._day_pnl = 0.0          # P&L réalisé du jour
+        self._day_start_balance = float(starting_balance)
+        from config import HARD_LIMITS as _HL
+        self._HL = _HL
 
     # -- sessions -----------------------------------------------------------
     def open_session(self, budget, accept_min=None, accept_max=None,
@@ -111,23 +118,101 @@ class PaperEngine:
     # -- tick : à appeler périodiquement (ex. toutes les 15 s) --------------
     def tick(self, market, now=None):
         """
-        market = { pair: {"candles":[...], "price":float,
+        market = { pair: {"candles":[...], "price":float, "stale":bool,
                           "news":[...], "q2a":float, "b2a":float} }
-        1) expire les propositions non validées (inaction par défaut)
-        2) met à jour / clôture les positions ouvertes contre le prix réel
-        3) génère de nouvelles propositions par session active
+        Garde-fous appliqués : coupe-circuit journalier, plafond d'exposition
+        global, fraîcheur des données, heures de marché, pause/kill.
+        Les positions ouvertes sont TOUJOURS suivies (SL/TP honorés même en
+        pause), seules les NOUVELLES propositions sont bloquées.
         """
         now = now or _now()
+        self._roll_day(now)
         self.supervisor.sweep(now)
         self.manager.sweep_expired(now)
         self._update_positions(market, now)
 
-        for session in list(self.manager.active):
-            for pair, m in market.items():
-                self.supervisor.propose(
-                    session, pair, m.get("candles", []), m.get("news", []),
-                    m.get("q2a", 1.0), m.get("b2a", 1.0), now)
-        self._sync_positions(now)
+        if self.running and not self.daily_halted:
+            for session in list(self.manager.active):
+                if not self._can_open_more():
+                    break
+                for pair, m in market.items():
+                    if not self._can_open_more():
+                        break
+                    if not self._tradeable(pair, m, now):
+                        continue
+                    self.supervisor.propose(
+                        session, pair, m.get("candles", []), m.get("news", []),
+                        m.get("q2a", 1.0), m.get("b2a", 1.0), now)
+                    self._sync_positions(now)   # MAJ immédiate du compte de positions
+            self._sync_positions(now)
+        return self.snapshot(now)
+
+    # -- garde-fous ----------------------------------------------------------
+    def _roll_day(self, now):
+        d = now.date()
+        if self._day != d:
+            self._day = d
+            self._day_pnl = 0.0
+            self._day_start_balance = self.manager.balance
+
+    @property
+    def daily_halted(self):
+        cap = self._HL.get("max_daily_loss_pct", 4.0)
+        return self._day_pnl <= -(self._day_start_balance * cap / 100.0)
+
+    def _open_risk(self):
+        return sum(p.initial_risk for p in self.positions.values())
+
+    def _can_open_more(self):
+        if len(self.positions) >= self._HL.get("max_open_positions", 3):
+            return False
+        risk_cap = self._day_start_balance * (
+            self._HL.get("max_open_positions", 3)
+            * self._HL.get("max_risk_per_trade_pct", 2.0) / 100.0)
+        return self._open_risk() < risk_cap
+
+    @staticmethod
+    def _is_crypto(pair):
+        s = pair.upper()
+        return any(c in s for c in
+                   ("BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "LTC", "USDT", "USDC"))
+
+    @staticmethod
+    def _forex_open(now):
+        # Forex fermé ~ vendredi 21:00 UTC -> dimanche 21:00 UTC.
+        wd, h = now.weekday(), now.hour     # lundi=0 ... dimanche=6
+        if wd == 5:
+            return False
+        if wd == 4 and h >= 21:
+            return False
+        if wd == 6 and h < 21:
+            return False
+        return True
+
+    def _tradeable(self, pair, m, now):
+        if m.get("price") is None or not m.get("candles"):
+            return False
+        if m.get("stale"):
+            return False
+        if not self._is_crypto(pair) and not self._forex_open(now):
+            return False
+        return True
+
+    def pause(self):
+        self.running = False
+
+    def resume(self):
+        self.running = True
+
+    def kill(self, market=None, now=None):
+        """Arrêt d'urgence : ferme toutes les positions au prix courant, stoppe le moteur."""
+        now = now or _now()
+        if market:
+            for pos in list(self.positions.values()):
+                m = market.get(pos.pair)
+                price = float(m["price"]) if (m and m.get("price") is not None) else pos.entry_price
+                self._close(pos, price, "KILL", now)
+        self.running = False
         return self.snapshot(now)
 
     # -- transforme les propositions approuvées en positions papier ---------
@@ -189,6 +274,7 @@ class PaperEngine:
             signal_confidence=pos.confidence, caution_factor=pos.caution,
             notes=f"paper session={pos.session_id}"))
         self.manager.record_trade_pnl(pos.session_id, pnl)
+        self._day_pnl += pnl
         self.positions.pop(pos.id, None)
 
     # -- vue pour l'API ------------------------------------------------------
@@ -198,6 +284,10 @@ class PaperEngine:
             "balance": round(self.manager.balance, 2),
             "available": self.manager.available,
             "reserved": self.manager.reserved,
+            "running": self.running,
+            "daily_halted": self.daily_halted,
+            "day_pnl": round(self._day_pnl, 2),
+            "open_risk": round(self._open_risk(), 2),
             "sessions": [{
                 "id": s.id, "allocated": s.allocated, "equity": s.equity,
                 "realized_pnl": s.realized_pnl, "trades": s.trades,
@@ -238,6 +328,10 @@ class PaperEngine:
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
             } for s in self.manager.sessions.values()],
             "positions": [dict(vars(pos)) for pos in self.positions.values()],
+            "running": self.running,
+            "day": self._day.isoformat() if self._day else None,
+            "day_pnl": self._day_pnl,
+            "day_start_balance": self._day_start_balance,
         }
 
     def load_state(self, d):
@@ -268,3 +362,11 @@ class PaperEngine:
             pos = PaperPosition(**pd)
             self.positions[pos.id] = pos
             self._has_pos.add(pos.pending_id)
+        self.running = d.get("running", True)
+        from datetime import date as _date
+        try:
+            self._day = _date.fromisoformat(d["day"]) if d.get("day") else None
+        except Exception:
+            self._day = None
+        self._day_pnl = d.get("day_pnl", 0.0)
+        self._day_start_balance = d.get("day_start_balance", self.manager.balance)

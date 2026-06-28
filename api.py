@@ -262,9 +262,36 @@ except Exception:
 def _save_paper():
     try:
         _PAPER_STATE.parent.mkdir(parents=True, exist_ok=True)
-        _PAPER_STATE.write_text(_json.dumps(_paper.to_state()))
+        tmp = _PAPER_STATE.with_suffix(".tmp")
+        tmp.write_text(_json.dumps(_paper.to_state()))
+        os.replace(str(tmp), str(_PAPER_STATE))   # écriture atomique
     except Exception:
         pass
+
+
+_rate_cache = {}   # pair -> (ts, (q2a, b2a))
+
+
+def _rates_cached(od, pair, ttl=60):
+    hit = _rate_cache.get(pair)
+    if hit and (_time.time() - hit[0]) < ttl:
+        return hit[1]
+    r = od.conversion_rates(pair)
+    _rate_cache[pair] = (_time.time(), r)
+    return r
+
+
+def _candle_stale(candles, max_age_min=45):
+    """True si la dernière bougie M15 est trop vieille (données périmées)."""
+    if not candles:
+        return True
+    from datetime import datetime, timezone
+    try:
+        t = candles[-1]["time"].replace("Z", "").split(".")[0]
+        dt = datetime.fromisoformat(t).replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - dt).total_seconds() / 60.0 > max_age_min
+    except Exception:
+        return False
 
 
 def _gather_market():
@@ -273,11 +300,11 @@ def _gather_market():
     for pair in config.INSTRUMENTS:
         try:
             candles = od.get_history(pair, "M15")
-            px = od.get_latest(pair)
+            px = od.get_latest(pair)             # prix live -> frais par construction
             price = (px["bid"] + px["ask"]) / 2.0
-            q2a, b2a = od.conversion_rates(pair)
-            market[pair] = {"candles": candles, "price": price,
-                            "news": [], "q2a": q2a, "b2a": b2a}
+            q2a, b2a = _rates_cached(od, pair)   # taux mis en cache (B9)
+            market[pair] = {"candles": candles, "price": price, "news": [],
+                            "q2a": q2a, "b2a": b2a, "stale": _candle_stale(candles)}
         except Exception:
             continue
     return market
@@ -338,13 +365,14 @@ def paper_state():
 def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
     try:
         budget = float(body.get("budget", 0))
-        s = _paper.open_session(
-            budget=budget,
-            accept_min=body.get("accept_min"), accept_max=body.get("accept_max"),
-            profile=Profile(body.get("profile", "reserve")),
-            risk_level=body.get("risk_level", "reserve"),
-            duration_min=int(body.get("duration_min", 240)))
-        _save_paper()
+        with _paper_lock:
+            s = _paper.open_session(
+                budget=budget,
+                accept_min=body.get("accept_min"), accept_max=body.get("accept_max"),
+                profile=Profile(body.get("profile", "reserve")),
+                risk_level=body.get("risk_level", "reserve"),
+                duration_min=int(body.get("duration_min", 240)))
+            _save_paper()
         return {"ok": True, "session_id": s.id}
     except Exception as e:
         return {"error": str(e)}
@@ -352,13 +380,37 @@ def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
 
 @app.post("/api/paper/decide")
 def paper_decide(body: dict = Body(...), user=Depends(require_user)):
-    p = _paper.decide(body.get("pending_id"), body.get("action"))
-    _save_paper()
+    with _paper_lock:
+        p = _paper.decide(body.get("pending_id"), body.get("action"))
+        _save_paper()
     return {"ok": p is not None}
 
 
 @app.post("/api/paper/session/close")
 def paper_close_session(body: dict = Body(...), user=Depends(require_user)):
-    _paper.close_session(body.get("session_id"))
-    _save_paper()
+    with _paper_lock:
+        _paper.close_session(body.get("session_id"))
+        _save_paper()
     return {"ok": True}
+
+
+@app.post("/api/paper/pause")
+def paper_pause(user=Depends(require_user)):
+    with _paper_lock:
+        _paper.pause(); _save_paper()
+    return {"ok": True, "running": _paper.running}
+
+
+@app.post("/api/paper/resume")
+def paper_resume(user=Depends(require_user)):
+    with _paper_lock:
+        _paper.resume(); _save_paper()
+    return {"ok": True, "running": _paper.running}
+
+
+@app.post("/api/paper/kill")
+def paper_kill(user=Depends(require_user)):
+    """Arrêt d'urgence : ferme toutes les positions papier et stoppe le moteur."""
+    with _paper_lock:
+        _paper.kill(_gather_market()); _save_paper()
+    return {"ok": True, "running": _paper.running}
