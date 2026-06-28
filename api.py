@@ -386,13 +386,10 @@ def market_status():
 
 @app.get("/api/crypto")
 def crypto_prices():
-    """Cours crypto via Alpaca (lecture seule). 'error' si non configuré."""
-    from alpaca_data import AlpacaData, configured
-    if not configured():
-        return {"error": "Alpaca non configuré",
-                "detail": "Ajoutez ALPACA_PAPER_KEY/SECRET (ou LIVE) au .env."}
+    """Cours crypto via l'API publique Kraken (lecture seule, aucune clé requise)."""
+    from kraken_data import KrakenData
     try:
-        return _clean({"prices": AlpacaData().latest_quotes(config.CRYPTO_INSTRUMENTS)})
+        return _clean({"prices": KrakenData().latest_quotes(config.CRYPTO_INSTRUMENTS)})
     except Exception as e:
         return {"error": "cours crypto indisponibles", "detail": str(e)}
 

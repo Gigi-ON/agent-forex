@@ -59,11 +59,11 @@ HARD_LIMITS = {
     "min_reward_risk_ratio": 1.5,
 }
 
-# --- Alpaca (crypto) -------------------------------------------------------
-# Clés lues depuis l'environnement (jamais en dur). Data crypto = cours ;
-# l'exécution viendra après la couche de sécurité (gate GO + double auth).
-ALPACA_PAPER_KEY = os.environ.get("ALPACA_PAPER_KEY", "")
-ALPACA_PAPER_SECRET = os.environ.get("ALPACA_PAPER_SECRET", "")
-ALPACA_LIVE_KEY = os.environ.get("ALPACA_LIVE_KEY", "")
-ALPACA_LIVE_SECRET = os.environ.get("ALPACA_LIVE_SECRET", "")
+# --- Kraken (crypto) -------------------------------------------------------
+# Les COURS utilisent l'API publique Kraken (AUCUNE clé requise). Les clés ne
+# servent qu'à l'exécution future (après gate GO + double auth).
+KRAKEN_API_KEY = os.environ.get("KRAKEN_API_KEY", "")
+KRAKEN_API_SECRET = os.environ.get("KRAKEN_API_SECRET", "")
 CRYPTO_INSTRUMENTS = ["BTC/USD", "ETH/USD"]
+# affichage -> (paire Kraken pour la requête, code de base pour le matching réponse)
+KRAKEN_PAIRS = {"BTC/USD": ("XBTUSD", "XBT"), "ETH/USD": ("ETHUSD", "ETH")}

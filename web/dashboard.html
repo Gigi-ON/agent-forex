@@ -1259,7 +1259,7 @@
       let d; try{ d=await API("/api/crypto"); }catch(e){ d=null; }
       if(d&&d.error){ el.innerHTML='<div class="cap">'+d.error+(d.detail?" — "+d.detail:"")+'</div>'; if($('tvMetrics'))$('tvMetrics').textContent="Cours crypto indisponibles."; return; }
       const pr=(d&&d.prices)||{};
-      list.forEach(function(sym){ if(pr[sym]&&pr[sym].mid!=null) priceOf[sym]=pr[sym].mid; note[sym]="Alpaca · cours"; });
+      list.forEach(function(sym){ if(pr[sym]&&pr[sym].mid!=null) priceOf[sym]=pr[sym].mid; note[sym]="Kraken · cours"; });
     } else {
       let d; try{ d=await API("/api/signals"); }catch(e){ return; }
       ((d&&d.signals)||[]).forEach(function(s){ sigOf[s.instrument]=s; if(s.price) priceOf[s.instrument]=(s.price.bid+s.price.ask)/2; note[s.instrument]=s.price?("spread "+((s.price.ask-s.price.bid)*10000).toFixed(1)+" pip"):"—"; });
@@ -1279,7 +1279,7 @@
     if($('tvBig')) $('tvBig').textContent=price!=null?Number(price).toFixed(tvDec(TVsel||"",m)):"—";
     if($('tvMetrics')){
       if(s&&s.has_signal) $('tvMetrics').innerHTML="Signal "+(s.side==="sell"?"vente":"achat")+" · conf "+Math.round(s.confidence*100)+"% · entrée "+s.entry+" · stop "+s.stop+" · objectif "+s.take_profit;
-      else if(m==="crypto") $('tvMetrics').textContent="Cours en direct (Alpaca). Signaux et exécution crypto à venir.";
+      else if(m==="crypto") $('tvMetrics').textContent="Cours en direct (Kraken). Signaux et exécution crypto à venir.";
       else if(s&&s.error) $('tvMetrics').textContent="Données indisponibles pour cet instrument.";
       else $('tvMetrics').textContent="Aucun signal courant — inaction par défaut.";
     }
