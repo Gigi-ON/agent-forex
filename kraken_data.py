@@ -19,9 +19,8 @@ class KrakenData:
         clés canoniques (ex. XXBTZUSD) -> on les retrouve via le code de base."""
         out = {}
         for disp in displays:
-            base = config.KRAKEN_PAIRS.get(disp, (None, None))[1]
-            if not base:
-                continue
+            base = config.KRAKEN_PAIRS.get(disp, (None, None))[1] or disp.split("/")[0]
+            base = "XBT" if base == "BTC" else base
             key = next((k for k in result if base in k and "USD" in k), None)
             if not key:
                 continue
@@ -41,7 +40,12 @@ class KrakenData:
 
     def latest_quotes(self, displays):
         import requests
-        req = ",".join(config.KRAKEN_PAIRS[d][0] for d in displays if d in config.KRAKEN_PAIRS)
+        def _req(d):
+            if d in config.KRAKEN_PAIRS:
+                return config.KRAKEN_PAIRS[d][0]
+            b = d.split("/")[0]
+            return ("XBT" if b == "BTC" else b) + "USD"
+        req = ",".join(_req(d) for d in displays)
         r = requests.get(BASE + "/Ticker", params={"pair": req}, timeout=8)
         r.raise_for_status()
         j = r.json()
@@ -58,3 +62,22 @@ class KrakenData:
         if j.get("error"):
             raise RuntimeError("Kraken: " + ";".join(j["error"]))
         return self.parse_ohlc(j.get("result", {}))[-limit:]
+
+    @staticmethod
+    def parse_asset_pairs(result):
+        """Paires USD tradables -> symboles d'affichage (XBT->BTC). PUR, testable."""
+        out = []
+        for k, v in (result or {}).items():
+            if v.get("quote") in ("ZUSD", "USD") and "/USD" in (v.get("wsname") or ""):
+                base = v["wsname"].split("/")[0]
+                out.append(("BTC" if base == "XBT" else base) + "/USD")
+        return sorted(set(out))
+
+    def list_usd_pairs(self):
+        import requests
+        r = requests.get(BASE + "/AssetPairs", timeout=10)
+        r.raise_for_status()
+        j = r.json()
+        if j.get("error"):
+            raise RuntimeError("Kraken: " + ";".join(j["error"]))
+        return self.parse_asset_pairs(j.get("result", {}))

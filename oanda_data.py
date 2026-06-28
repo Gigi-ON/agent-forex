@@ -52,6 +52,15 @@ class OandaData(DataProvider):
     def get_equity(self):
         return self.get_account_summary()["nav"]
 
+    def list_instruments(self):
+        """Noms OANDA des instruments tradables (CURRENCY + METAL), ex. EUR_USD, XAU_USD."""
+        import oandapyV20.endpoints.accounts as accounts
+        api = self._ensure_api()
+        r = accounts.AccountInstruments(config.OANDA_ACCOUNT_ID)
+        api.request(r)
+        return [i["name"] for i in r.response.get("instruments", [])
+                if i.get("type") in ("CURRENCY", "METAL")]
+
     # -- parsing isolé (PUR, testable sans réseau) ---------------------------
     @staticmethod
     def parse_candles(raw_candles):

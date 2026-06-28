@@ -296,8 +296,16 @@ def _candle_stale(candles, max_age_min=45):
 
 def _gather_market():
     od = _data()
+    pairs = set(config.INSTRUMENTS)
+    try:
+        for ss in _paper.manager.active:
+            ins = getattr(ss, "instrument", None)
+            if ins and "_" in ins:
+                pairs.add(ins)
+    except Exception:
+        pass
     market = {}
-    for pair in config.INSTRUMENTS:
+    for pair in pairs:
         try:
             candles = od.get_history(pair, "M15")
             px = od.get_latest(pair)             # prix live -> frais par construction
@@ -384,6 +392,51 @@ def market_status():
     }
 
 
+@app.get("/api/price")
+def price(asset: str = "forex", instrument: str = ""):
+    """Dernier cours d'un instrument (forex via OANDA, crypto via Kraken)."""
+    if not instrument:
+        return {"error": "instrument requis"}
+    try:
+        if asset == "crypto":
+            from kraken_data import KrakenData
+            q = KrakenData().latest_quotes([instrument])
+            return _clean({"instrument": instrument, "price": q.get(instrument)})
+        od = _data()
+        px = od.get_latest(instrument.replace("/", "_"))
+        mid = round((px["bid"] + px["ask"]) / 2, 5)
+        return _clean({"instrument": instrument,
+                       "price": {"bid": px["bid"], "ask": px["ask"], "mid": mid}})
+    except Exception as e:
+        return {"error": "prix indisponible", "detail": str(e)}
+
+
+@app.get("/api/instruments")
+def instruments(asset: str = "forex"):
+    """Liste des instruments tradables, ordonnée par priorité (intersection courtier).
+    Repli sur la liste curée si le courtier est injoignable."""
+    def ordered(items, priority):
+        rank = {p: i for i, p in enumerate(priority)}
+        seen, uniq = set(), []
+        for x in items:
+            if x not in seen:
+                seen.add(x); uniq.append(x)
+        return sorted(uniq, key=lambda x: (rank.get(x, 10 ** 6), x))
+    try:
+        if asset == "crypto":
+            from kraken_data import KrakenData
+            live = KrakenData().list_usd_pairs()
+            if not live:
+                raise RuntimeError("liste vide")
+            return {"asset": "crypto", "instruments": ordered(live, config.CRYPTO_PRIORITY)}
+        od = _data()
+        disp = [n.replace("_", "/") for n in od.list_instruments()]
+        return {"asset": "forex", "instruments": ordered(disp, config.FOREX_PRIORITY)}
+    except Exception as e:
+        fb = config.CRYPTO_PRIORITY if asset == "crypto" else config.FOREX_PRIORITY
+        return {"asset": asset, "instruments": fb, "fallback": True, "detail": str(e)}
+
+
 @app.get("/api/crypto")
 def crypto_prices():
     """Cours crypto via l'API publique Kraken (lecture seule, aucune clé requise)."""
@@ -408,21 +461,25 @@ def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
     try:
         budget = float(body.get("budget", 0))
         asset = body.get("asset", "forex")
-        if asset == "forex":
-            from datetime import datetime, timezone
-            now = datetime.now(timezone.utc)
-            if not _paper._forex_open(now):
-                return {"error": "Le marché forex est fermé.",
-                        "next_open": _forex_next_open(now).isoformat()}
+        if asset == "crypto":
+            return {"error": "Exécution crypto bientôt — pour l'instant, cours seulement (Kraken)."}
+        instrument = body.get("instrument")
+        oanda_inst = instrument.replace("/", "_") if instrument else None
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        if not _paper._forex_open(now):
+            return {"error": "Le marché forex est fermé.",
+                    "next_open": _forex_next_open(now).isoformat()}
         with _paper_lock:
             s = _paper.open_session(
                 budget=budget,
                 accept_min=body.get("accept_min"), accept_max=body.get("accept_max"),
                 profile=Profile(body.get("profile", "reserve")),
                 risk_level=body.get("risk_level", "reserve"),
-                duration_min=int(body.get("duration_min", 240)))
+                duration_min=int(body.get("duration_min", 240)),
+                instrument=oanda_inst)
             _save_paper()
-        return {"ok": True, "session_id": s.id}
+        return {"ok": True, "session_id": s.id, "instrument": oanda_inst}
     except Exception as e:
         return {"error": str(e)}
 

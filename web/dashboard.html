@@ -1232,13 +1232,17 @@
 
   /* ============ VUE TRADING (watchlist + flash + statut marché + ticket) ============ */
   let TVprev={}, TVsel=null, TVside="buy", TVmkt=null;
-  const FOREX_MAJORS=["EUR_USD","EUR_CAD","GBP_USD","USD_JPY","USD_CAD","AUD_USD"];
-  const CRYPTO_LIST=["BTC/USD","ETH/USD"];
-  function tvList(){ return ($('tvMarket')&&$('tvMarket').value==="crypto")?CRYPTO_LIST:FOREX_MAJORS; }
-  function tvPopulatePairs(){
-    const sel=$('tvPair'); if(!sel)return; const m=$('tvMarket').value, list=tvList();
-    sel.innerHTML=list.map(function(pr){return '<option value="'+pr+'">'+pr.replace("_","/")+(m==="crypto"?" (bientôt)":"")+'</option>';}).join('');
-    if(!TVsel||list.indexOf(TVsel)<0){ TVsel=list[0]; sel.value=TVsel; }
+  const WATCH_FOREX=["EUR/USD","EUR/CAD"];   // vedettes (signaux live)
+  const WATCH_CRYPTO=["BTC/USD","ETH/USD"];  // vedettes (cours Kraken)
+  function tvList(){ return ($('tvMarket')&&$('tvMarket').value==="crypto")?WATCH_CRYPTO:WATCH_FOREX; }
+  async function tvPopulatePairs(){
+    const sel=$('tvPair'); if(!sel)return; const m=$('tvMarket').value;
+    let list=[];
+    try{ const d=await API("/api/instruments?asset="+m); list=(d&&d.instruments)||[]; }catch(e){}
+    if(!list.length) list=tvList();
+    sel.innerHTML=list.map(function(pr){return '<option value="'+pr+'">'+pr+'</option>';}).join("");
+    if(!TVsel||list.indexOf(TVsel)<0){ TVsel=list[0]; }
+    sel.value=TVsel;
   }
   function tvFmtET(iso){ try{ return new Date(iso).toLocaleString("fr-CA",{timeZone:"America/Toronto",weekday:"short",hour:"2-digit",minute:"2-digit"}); }catch(e){ return iso; } }
   function tvCountdown(iso){ const ms=new Date(iso)-new Date(); if(ms<=0)return "imminent"; const h=Math.floor(ms/3.6e6), mn=Math.floor(ms%3.6e6/6e4); return (h>0?h+" h ":"")+mn+" m"; }
@@ -1262,7 +1266,7 @@
       list.forEach(function(sym){ if(pr[sym]&&pr[sym].mid!=null) priceOf[sym]=pr[sym].mid; note[sym]="Kraken · cours"; });
     } else {
       let d; try{ d=await API("/api/signals"); }catch(e){ return; }
-      ((d&&d.signals)||[]).forEach(function(s){ sigOf[s.instrument]=s; if(s.price) priceOf[s.instrument]=(s.price.bid+s.price.ask)/2; note[s.instrument]=s.price?("spread "+((s.price.ask-s.price.bid)*10000).toFixed(1)+" pip"):"—"; });
+      ((d&&d.signals)||[]).forEach(function(s){ const k=s.instrument.replace("_","/"); sigOf[k]=s; if(s.price) priceOf[k]=(s.price.bid+s.price.ask)/2; note[k]=s.price?("spread "+((s.price.ask-s.price.bid)*10000).toFixed(1)+" pip"):"—"; });
     }
     el.innerHTML=list.map(function(pair){
       const price=priceOf[pair], prev=TVprev[pair]; let fl="";
@@ -1274,7 +1278,8 @@
       else if(s) tag=s.has_signal?('<span class="tvtag '+(s.side==="sell"?"sell":"buy")+'">'+(s.side==="sell"?"vente":"achat")+" "+Math.round(s.confidence*100)+'%</span>'):'<span class="tvtag">aucun signal</span>';
       return '<div class="tvrow '+(pair===TVsel?"sel ":"")+fl+'" data-pair="'+pair+'"><span class="tvpair">'+tvDisp(pair)+'</span><span class="tvpx">'+pxs+'</span><span class="tvsub">'+(note[pair]||"—")+'</span><span style="text-align:right">'+tag+'</span></div>';
     }).join("");
-    const s=sigOf[TVsel], price=priceOf[TVsel];
+    const s=sigOf[TVsel]; let price=priceOf[TVsel];
+    if(price==null && TVsel){ try{ const pr=await API("/api/price?asset="+m+"&instrument="+encodeURIComponent(TVsel)); if(pr&&pr.price&&pr.price.mid!=null) price=pr.price.mid; }catch(e){} }
     if($('tvChartTitle')) $('tvChartTitle').textContent=TVsel?tvDisp(TVsel):"—";
     if($('tvBig')) $('tvBig').textContent=price!=null?Number(price).toFixed(tvDec(TVsel||"",m)):"—";
     if($('tvMetrics')){
@@ -1286,7 +1291,7 @@
   }
   (function(){
     const w=$('tvWatch'); if(w) w.addEventListener("click",function(e){ const r=e.target.closest("[data-pair]"); if(!r)return; TVsel=r.dataset.pair; if($('tvPair'))$('tvPair').value=TVsel; tvRefreshPrices(); });
-    if($('tvMarket')) $('tvMarket').onchange=function(){ tvPopulatePairs(); tvRenderStatus(); tvRefreshPrices(); };
+    if($('tvMarket')) $('tvMarket').onchange=async function(){ await tvPopulatePairs(); tvRenderStatus(); tvRefreshPrices(); };
     if($('tvPair')) $('tvPair').onchange=function(){ TVsel=$('tvPair').value; tvRefreshPrices(); };
     let TVmode="auto";
     if($('tvModeSeg')) $('tvModeSeg').onclick=function(e){ const b=e.target.closest("button"); if(!b)return; TVmode=b.dataset.m; [].forEach.call(e.currentTarget.children,function(x){x.classList.remove("on");}); b.classList.add("on"); if($('tvBandWrap')) $('tvBandWrap').style.display=(TVmode==="auto")?"":"none"; };
@@ -1294,15 +1299,15 @@
       const m=$('tvMarket').value;
       if(m==="crypto"){ $('tvMsg').innerHTML='<span class="dn">La crypto est en cours d’intégration (cours seulement). Exécution bientôt.</span>'; return; }
       const budget=parseInt($('tvBudget').value,10)||0;
-      const body={budget:budget, asset:"forex", profile:"doux", risk_level:"doux"};
+      const body={budget:budget, asset:"forex", instrument:TVsel, profile:"doux", risk_level:"doux"};
       if(TVmode==="auto"){ body.accept_min=Math.max(0,Math.min(1,(parseFloat($('tvMin').value)||0)/100)); body.accept_max=Math.max(0,Math.min(1,(parseFloat($('tvMax').value)||100)/100)); }
       const h=await authHeaders();
       const r=await fetch("/api/paper/session",{method:"POST",headers:h,body:JSON.stringify(body)}).then(function(x){return x.json();}).catch(function(e){return {error:String(e)};});
       if(r.error){ let msg=r.error; if(r.next_open) msg+=" Réouverture "+tvFmtET(r.next_open)+" HE — dans "+tvCountdown(r.next_open)+". La crypto reste disponible."; $('tvMsg').innerHTML='<span class="dn">'+msg+'</span>'; }
       else{ $('tvMsg').innerHTML='<span class="up">Session #'+r.session_id+" ouverte ("+money(budget)+'). Propositions dans « Bot sous tutelle ».</span>'; if(typeof refreshPaper==="function") refreshPaper(); }
     };
-    tvPopulatePairs(); if($('tvBandWrap'))$('tvBandWrap').style.display="";
-    tvRefreshMarket(); tvRefreshPrices();
+    if($('tvBandWrap'))$('tvBandWrap').style.display="";
+    tvPopulatePairs().then(function(){ tvRefreshMarket(); tvRefreshPrices(); });
     setInterval(tvRefreshPrices,5000); setInterval(tvRefreshMarket,30000); setInterval(tvRenderStatus,1000);
   })();
 

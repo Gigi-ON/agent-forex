@@ -91,12 +91,13 @@ class PaperEngine:
     # -- sessions -----------------------------------------------------------
     def open_session(self, budget, accept_min=None, accept_max=None,
                      profile=Profile.RESERVE, risk_level="reserve",
-                     duration_min=240, tutelle=Tutelle.MANUEL):
+                     duration_min=240, tutelle=Tutelle.MANUEL, instrument=None):
         s = self.manager.open_session(allocated=budget, profile=profile,
                                       tutelle=tutelle, duration_min=duration_min,
                                       risk_level=risk_level)
         s.accept_min = accept_min
         s.accept_max = accept_max
+        s.instrument = instrument
         return s
 
     def close_session(self, session_id, reason="clôture manuelle"):
@@ -135,10 +136,12 @@ class PaperEngine:
             for session in list(self.manager.active):
                 if not self._can_open_more():
                     break
-                for pair, m in market.items():
+                pairs = [session.instrument] if getattr(session, "instrument", None) else list(market.keys())
+                for pair in pairs:
                     if not self._can_open_more():
                         break
-                    if not self._tradeable(pair, m, now):
+                    m = market.get(pair)
+                    if not m or not self._tradeable(pair, m, now):
                         continue
                     self.supervisor.propose(
                         session, pair, m.get("candles", []), m.get("news", []),
@@ -294,6 +297,7 @@ class PaperEngine:
                 "tutelle": s.tutelle.value if hasattr(s.tutelle, "value") else s.tutelle,
                 "risk_level": s.risk_level,
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
+                "instrument": getattr(s, "instrument", None),
                 "state": s.state.value if hasattr(s.state, "value") else s.state,
             } for s in self.manager.sessions.values()],
             "pending": [{
@@ -326,6 +330,7 @@ class PaperEngine:
                 "state": s.state.value if hasattr(s.state, "value") else s.state,
                 "realized_pnl": s.realized_pnl, "trades": s.trades,
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
+                "instrument": s.instrument,
             } for s in self.manager.sessions.values()],
             "positions": [dict(vars(pos)) for pos in self.positions.values()],
             "running": self.running,
@@ -355,6 +360,7 @@ class PaperEngine:
             s.trades = sd.get("trades", 0)
             s.accept_min = sd.get("accept_min")
             s.accept_max = sd.get("accept_max")
+            s.instrument = sd.get("instrument")
             self.manager.sessions[s.id] = s
         self.positions = {}
         self._has_pos = set()
