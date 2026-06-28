@@ -346,6 +346,22 @@
   .modal .mbox{width:100%;max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
   .modal input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-family:inherit}
   .modal .err{color:var(--coral);font-size:12.5px;min-height:16px}
+  /* Cartes mises en avant sur fond charbon (Sessions, Opportunités) + toasts */
+  .card.dark{background:#36454F;border-color:rgba(255,255,255,.08);color:#fff}
+  .card.dark h3{color:#fff;border-bottom-color:rgba(255,255,255,.14)}
+  .card.dark .cap,.card.dark .empty{color:#B6C0C8}
+  .card.dark .msg{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.10);color:#fff}
+  .card.dark .up{color:#34C796}
+  .card.dark .down,.card.dark .dn{color:#F06A6A}
+  .card.dark .btn{background:transparent;border-color:rgba(255,255,255,.28);color:#fff}
+  .card.dark .btn:hover{background:rgba(255,255,255,.12)}
+  .card.dark .btn.primary{background:#fff;color:#36454F;border-color:#fff}
+  .card.dark .tvtag{background:rgba(255,255,255,.14);color:#fff}
+  .card.dark .tvtag.buy{background:rgba(52,199,150,.22);color:#9FF0D2}
+  .card.dark .tvtag.sell{background:rgba(240,106,106,.22);color:#FFC3C3}
+  .toast{background:#36454F;border:1px solid rgba(255,255,255,.08);border-left:3px solid rgba(255,255,255,.45);color:#fff}
+  .toast .tt{color:#fff}.toast .tb{color:#B6C0C8}
+  .toast.red{border-left-color:#F06A6A}.toast.amber{border-left-color:#E8B14A}.toast.green{border-left-color:#34C796}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -764,10 +780,10 @@
           <div class="inbox" id="inbox"><div class="empty">Aucun message.</div></div></div>
       </div>
 
-      <div class="card"><h3>💡 Opportunités de profit <span class="cap" style="font-weight:400">— le bot vous dit quand ; Oui/Non sous 20 s</span></h3>
+      <div class="card dark"><h3>💡 Opportunités de profit <span class="cap" style="font-weight:400">— le bot vous dit quand ; Oui/Non sous 20 s</span></h3>
         <div id="approvals" style="margin-top:10px"><div class="empty" id="apprEmpty">Aucune proposition en attente.</div></div></div>
 
-      <div class="card"><h3>▦ Sessions</h3><div class="sessions" id="sessions"></div><div class="empty" id="sessEmpty">Aucune session. Lancez-en une.</div></div>
+      <div class="card dark"><h3>▦ Sessions</h3><div class="sessions" id="sessions"></div><div class="empty" id="sessEmpty">Aucune session. Lancez-en une.</div></div>
 
       <div class="grid r3">
         <div class="card"><h3>📒 Rapports de session</h3><div class="cap" style="margin:3px 0 12px">Gain ou perte finale de chaque session terminée</div>
