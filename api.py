@@ -384,6 +384,19 @@ def market_status():
     }
 
 
+@app.get("/api/crypto")
+def crypto_prices():
+    """Cours crypto via Alpaca (lecture seule). 'error' si non configuré."""
+    from alpaca_data import AlpacaData, configured
+    if not configured():
+        return {"error": "Alpaca non configuré",
+                "detail": "Ajoutez ALPACA_PAPER_KEY/SECRET (ou LIVE) au .env."}
+    try:
+        return _clean({"prices": AlpacaData().latest_quotes(config.CRYPTO_INSTRUMENTS)})
+    except Exception as e:
+        return {"error": "cours crypto indisponibles", "detail": str(e)}
+
+
 # -- endpoints LECTURE -----------------------------------------------------
 @app.get("/api/paper")
 def paper_state():

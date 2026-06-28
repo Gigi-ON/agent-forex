@@ -58,3 +58,12 @@ HARD_LIMITS = {
     # Ratio minimum gain potentiel / perte potentielle pour accepter un trade.
     "min_reward_risk_ratio": 1.5,
 }
+
+# --- Alpaca (crypto) -------------------------------------------------------
+# Clés lues depuis l'environnement (jamais en dur). Data crypto = cours ;
+# l'exécution viendra après la couche de sécurité (gate GO + double auth).
+ALPACA_PAPER_KEY = os.environ.get("ALPACA_PAPER_KEY", "")
+ALPACA_PAPER_SECRET = os.environ.get("ALPACA_PAPER_SECRET", "")
+ALPACA_LIVE_KEY = os.environ.get("ALPACA_LIVE_KEY", "")
+ALPACA_LIVE_SECRET = os.environ.get("ALPACA_LIVE_SECRET", "")
+CRYPTO_INSTRUMENTS = ["BTC/USD", "ETH/USD"]
