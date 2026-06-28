@@ -722,7 +722,12 @@
             <div class="field" style="flex:1"><label>Durée</label><select id="duration" class="fld"><option value="60">1 h</option><option value="120" selected>2 h</option><option value="240">4 h</option></select></div></div>
           <div class="field"><label>Tutelle</label><div class="seg" id="tutelleSeg">
             <button class="on" data-t="manuel">Manuel — Oui/Non</button><button data-t="auto">Auto</button></div>
-            <div class="cap" style="margin-top:6px">L'option de risque s'applique aux deux modes.</div></div>
+            <div class="cap" style="margin-top:6px">Manuel = chaque proposition attend ton clic. Auto/semi = auto-validation dans l'intervalle ci-dessous (hors intervalle : attente → inaction).</div></div>
+          <div class="field"><label><input type="checkbox" id="acceptOn"> Auto-valider si la confiance est dans l'intervalle</label>
+            <div class="frow" style="display:flex;gap:12px;margin-top:6px">
+              <div style="flex:1"><label class="cap">Min %</label><input type="number" id="acceptMin" class="fld" value="70" min="0" max="100" step="1"></div>
+              <div style="flex:1"><label class="cap">Max %</label><input type="number" id="acceptMax" class="fld" value="90" min="0" max="100" step="1"></div>
+            </div></div>
           <button class="btn primary" id="launchBtn" style="width:100%;justify-content:center">Lancer la session</button>
         </div>
         <div class="card"><h3>✉ Messagerie</h3><div class="cap" style="margin:3px 0 12px">Alertes (toast + in-app + email)</div>
@@ -1069,6 +1074,86 @@
   }
   refreshLive();
   setInterval(refreshLive,30000);
+
+  /* ============ BRANCHEMENT PAPER-TRADING RÉEL (remplace la simulation) ============ */
+  let PAPER={balance:5000,available:5000,reserved:0,sessions:[],pending:[],positions:[]};
+  let JCACHE=null, LCACHE=null;
+  async function authHeaders(){
+    const h={'Content-Type':'application/json'};
+    try{ if(sb){ const {data}=await sb.auth.getSession(); if(data&&data.session) h['Authorization']='Bearer '+data.session.access_token; } }catch(e){}
+    return h;
+  }
+  async function refreshPaper(){
+    try{ PAPER=await API('/api/paper'); }catch(e){}
+    try{ JCACHE=await API('/api/journal'); }catch(e){}
+    try{ LCACHE=await API('/api/learning'); }catch(e){}
+    renderSessions(); renderApprovals(); renderReports(); renderLearning();
+  }
+  resolveTrade=function(){}; updateLearning=function(){};
+  renderSessions=function(){
+    const el=$('sessions'), em=$('sessEmpty'); if(!el)return;
+    const ss=PAPER.sessions||[];
+    if(em) em.style.display=ss.length?'none':'';
+    el.innerHTML=ss.map(function(s){
+      const pnl=s.realized_pnl||0, cls=pnl>0?'up':(pnl<0?'down':'');
+      const band=(s.accept_min!=null&&s.accept_max!=null)?('auto '+Math.round(s.accept_min*100)+'–'+Math.round(s.accept_max*100)+'%'):'manuel';
+      return '<div class="msg"><b>Session #'+s.id+'</b> <span class="cap">'+money(s.allocated)+' · '+band+'</span> <span class="'+cls+'" style="margin-left:auto;font-weight:700">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>';
+    }).join('');
+  };
+  renderApprovals=function(){
+    const el=$('approvals'); if(!el)return;
+    const pend=(PAPER.pending||[]).filter(function(p){return p.status==='pending';});
+    if(!pend.length){ el.innerHTML='<div class="empty" id="apprEmpty">Aucune proposition en attente.</div>'; return; }
+    el.innerHTML=pend.map(function(p){
+      return '<div class="msg"><b>'+p.pair.replace('_','/')+' '+p.side+'</b> <span class="cap">conf '+Math.round(p.confidence*100)+'% · '+p.seconds_left+'s</span>'
+        +'<span style="margin-left:auto;display:flex;gap:6px"><button class="btn" data-act="approve" data-id="'+p.id+'">Oui</button>'
+        +'<button class="btn" data-act="reject" data-id="'+p.id+'">Non</button></span></div>';
+    }).join('');
+  };
+  (function(){ const ap=$('approvals'); if(!ap)return; ap.addEventListener('click', async function(e){
+    const b=e.target.closest('button[data-act]'); if(!b)return;
+    const h=await authHeaders();
+    await fetch('/api/paper/decide',{method:'POST',headers:h,body:JSON.stringify({pending_id:b.dataset.id,action:b.dataset.act})}).catch(function(){});
+    refreshPaper();
+  }); })();
+  renderReports=function(){
+    const el=$('reports'); if(!el)return;
+    const pm=JCACHE&&JCACHE.post_mortem;
+    if(!pm||!pm.trades){ el.innerHTML='<div class="empty">Aucune session terminée.</div>'; return; }
+    let h='<div class="msg"><b>'+pm.trades+' trades</b> <span class="cap">'+pm.wins+'G/'+pm.losses+'P · réussite '+pm.win_rate+'%</span>'
+      +'<span style="margin-left:auto;font-weight:700" class="'+(pm.expectancy_R>0?'up':'down')+'">espérance '+(pm.expectancy_R>=0?'+':'')+pm.expectancy_R+'R</span></div>';
+    h+=((JCACHE.recent||[]).slice().reverse().slice(0,8).map(function(t){
+      return '<div class="msg"><b>'+t.pair.replace('_','/')+'</b> <span class="cap">'+t.exit_reason+'</span> <span style="margin-left:auto" class="'+(t.pnl>=0?'up':'down')+'">'+(t.pnl>=0?'+':'')+t.pnl+' $ ('+(t.r>=0?'+':'')+t.r+'R)</span></div>';
+    }).join(''));
+    el.innerHTML=h;
+  };
+  renderLearning=function(){
+    const el=$('learning'); if(!el)return;
+    const L=LCACHE; if(!L||!L.bands){ el.innerHTML='<div class="empty">Pas encore assez de trades.</div>'; return; }
+    let h=L.bands.map(function(b){
+      const cls=b.expectancy_R>0?'up':(b.expectancy_R<0?'down':'');
+      return '<div class="msg"><b>fiabilité '+b.label+'</b> <span class="cap">'+b.n+' trades</span> <span style="margin-left:auto" class="'+cls+'">'+(b.expectancy_R>=0?'+':'')+b.expectancy_R+'R</span></div>';
+    }).join('');
+    h+='<div class="cap" style="margin-top:8px">'+(L.enough_data?('✓ Seuil appris : ≥ '+Math.round(L.recommended_min_confidence*100)+'%'):'Données insuffisantes — le bot reste prudent.')+'</div>';
+    el.innerHTML=h;
+  };
+  (function(){ const lb=$('launchBtn'); if(!lb)return; lb.onclick=async function(){
+    const budget=parseInt($('alloc').value,10);
+    const profMap={'Réservé':'reserve','Doux':'doux','Agressif':'agressif'};
+    const profile=profMap[$('profile').value]||'doux';
+    const body={budget:budget, profile:profile, risk_level:profile, duration_min:parseInt($('duration').value,10)};
+    if($('acceptOn')&&$('acceptOn').checked){
+      body.accept_min=Math.max(0,Math.min(1,(parseFloat($('acceptMin').value)||0)/100));
+      body.accept_max=Math.max(0,Math.min(1,(parseFloat($('acceptMax').value)||100)/100));
+    }
+    const h=await authHeaders();
+    const r=await fetch('/api/paper/session',{method:'POST',headers:h,body:JSON.stringify(body)}).then(function(x){return x.json();}).catch(function(e){return {error:String(e)};});
+    if(r.error) botAlert('rejected','Échec ouverture session', r.error,'red');
+    else botAlert('info','Session ouverte','#'+r.session_id+' — '+money(budget),'');
+    refreshPaper();
+  }; })();
+  refreshPaper(); setInterval(refreshPaper, 8000);
+
 </script>
 </body>
 </html>
