@@ -3,10 +3,10 @@ Superviseur — le bot « sous tutelle ».
 
 Pour chaque session active, il enchaîne le moteur déterministe
 (signal -> macro -> risque, dimensionné sur le BUDGET DE LA SESSION) et,
-au lieu d'exécuter, crée une VALIDATION EN ATTENTE avec un minuteur de 45 s.
+au lieu d'exécuter, crée une VALIDATION EN ATTENTE avec un minuteur de 20 s.
 
   - Tutelle MANUEL : chaque proposition attend votre clic (approuver / rejeter
-    / modifier). Sans réponse en 45 s -> EXPIRÉE -> aucune action (sûr).
+    / modifier). Sans réponse en 20 s -> EXPIRÉE -> aucune action (sûr).
   - Tutelle AUTO   : auto-approbation UNIQUEMENT si confiance élevée ET prudence
     macro à 1,0 ET risque sous le sous-plafond du niveau choisi. Sinon, on
     bascule sur validation manuelle. L'inaction reste l'issue par défaut.
@@ -27,7 +27,7 @@ from journal import Trade
 from session import Tutelle, AUTO_RISK_CAP
 from alerts import Alert
 
-EXPIRY_SECONDS = 45
+EXPIRY_SECONDS = 20
 AUTO_MIN_CONFIDENCE = 0.75
 
 

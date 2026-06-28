@@ -752,7 +752,7 @@
           <div class="inbox" id="inbox"><div class="empty">Aucun message.</div></div></div>
       </div>
 
-      <div class="card"><h3>💡 Opportunités de profit <span class="cap" style="font-weight:400">— le bot vous dit quand ; Oui/Non sous 45 s</span></h3>
+      <div class="card"><h3>💡 Opportunités de profit <span class="cap" style="font-weight:400">— le bot vous dit quand ; Oui/Non sous 20 s</span></h3>
         <div id="approvals" style="margin-top:10px"><div class="empty" id="apprEmpty">Aucune proposition en attente.</div></div></div>
 
       <div class="card"><h3>▦ Sessions</h3><div class="sessions" id="sessions"></div><div class="empty" id="sessEmpty">Aucune session. Lancez-en une.</div></div>
@@ -777,14 +777,13 @@
         <div class="card"><h3 id="tvChartTitle">—</h3>
           <div id="tvBig" class="tvpx" style="font-size:26px;margin:8px 0">—</div>
           <div id="tvMetrics" class="cap">Sélectionnez un instrument pour voir le signal courant.</div></div>
-        <div class="card"><h3>Passer un ordre</h3>
-          <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
-            <button class="btn" id="tvBuy">Achat</button><button class="btn" id="tvSell">Vente</button></div>
+        <div class="card"><h3>Lancer une session</h3>
+          <div class="cap" style="margin:3px 0 12px">Vous fixez un budget. Le bot cherche des entrées favorables et revend selon sa stratégie, stop-loss automatique.</div>
           <div class="field"><label class="cap">Budget de session (CAD)</label><input id="tvBudget" class="fld" value="500"></div>
-          <div class="field"><label><input type="checkbox" id="tvAcceptOn"> Auto-valider si confiance dans l'intervalle</label>
-            <div style="display:flex;gap:10px;margin-top:6px">
-              <div style="flex:1"><span class="cap">Min %</span><input id="tvMin" class="fld" value="70"></div>
-              <div style="flex:1"><span class="cap">Max %</span><input id="tvMax" class="fld" value="90"></div></div></div>
+          <div class="field"><label class="cap">Validation</label>
+            <div class="seg" id="tvModeSeg"><button class="on" data-m="auto">Automatique</button><button data-m="manuel">Me demander (Oui/Non)</button></div></div>
+          <div class="field" id="tvBandWrap"><label class="cap">Le bot valide seul si la confiance est entre</label>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:4px"><input id="tvMin" class="fld" value="70" style="flex:1"><span class="cap">et</span><input id="tvMax" class="fld" value="90" style="flex:1"><span class="cap">%</span></div></div>
           <button class="btn primary" id="tvLaunch" style="width:100%;justify-content:center;margin-top:8px">Lancer la session</button>
           <div id="tvMsg" class="cap" style="margin-top:10px"></div></div>
       </div>
@@ -1022,7 +1021,7 @@
           const p={id:++state.pid,sess:s.id,pair:PAIRS[Math.floor(Math.random()*2)],side:Math.random()<0.5?'achat':'vente',units:Math.round(risk*900),risk,gain:+(risk*1.9).toFixed(2),conf,caution,created:now,expires:now+45000,status:'pending'};
           const cap=AUTO_CAP[s.profile]||0.5;
           if(s.tutelle==='auto'&&conf>=0.75&&caution>=1&&risk/eq*100<=cap){p.status='approved';state.pending.push(p);botAlert('executed',`Le bot a saisi — ${p.pair}`,`#${s.id} · +${p.gain} $ (auto).`,'green');setTimeout(()=>resolveTrade(p),2500+Math.random()*2500);}
-          else{state.pending.push(p);botAlert('approval',`Occasion — ${p.pair}`,`#${s.id} · gain visé +${p.gain} $ · Oui/Non 45 s.`,'');}
+          else{state.pending.push(p);botAlert('approval',`Occasion — ${p.pair}`,`#${s.id} · gain visé +${p.gain} $ · Oui/Non 20 s.`,'');}
         }}}
     renderShared();renderBotHead();renderSessions();renderApprovals(now);
   },1000);
@@ -1277,20 +1276,20 @@
     const w=$('tvWatch'); if(w) w.addEventListener("click",function(e){ const r=e.target.closest("[data-pair]"); if(!r)return; TVsel=r.dataset.pair; if($('tvPair'))$('tvPair').value=TVsel; tvRefreshPrices(); });
     if($('tvMarket')) $('tvMarket').onchange=function(){ tvPopulatePairs(); tvRenderStatus(); tvRefreshPrices(); };
     if($('tvPair')) $('tvPair').onchange=function(){ TVsel=$('tvPair').value; tvRefreshPrices(); };
-    if($('tvBuy')) $('tvBuy').onclick=function(){ TVside="buy"; $('tvBuy').classList.add("primary"); $('tvSell').classList.remove("primary"); };
-    if($('tvSell')) $('tvSell').onclick=function(){ TVside="sell"; $('tvSell').classList.add("primary"); $('tvBuy').classList.remove("primary"); };
+    let TVmode="auto";
+    if($('tvModeSeg')) $('tvModeSeg').onclick=function(e){ const b=e.target.closest("button"); if(!b)return; TVmode=b.dataset.m; [].forEach.call(e.currentTarget.children,function(x){x.classList.remove("on");}); b.classList.add("on"); if($('tvBandWrap')) $('tvBandWrap').style.display=(TVmode==="auto")?"":"none"; };
     if($('tvLaunch')) $('tvLaunch').onclick=async function(){
       const m=$('tvMarket').value;
       if(m==="crypto"){ $('tvMsg').innerHTML='<span class="dn">La crypto est en cours d’intégration (cours seulement). Exécution bientôt.</span>'; return; }
       const budget=parseInt($('tvBudget').value,10)||0;
       const body={budget:budget, asset:"forex", profile:"doux", risk_level:"doux"};
-      if($('tvAcceptOn')&&$('tvAcceptOn').checked){ body.accept_min=Math.max(0,Math.min(1,(parseFloat($('tvMin').value)||0)/100)); body.accept_max=Math.max(0,Math.min(1,(parseFloat($('tvMax').value)||100)/100)); }
+      if(TVmode==="auto"){ body.accept_min=Math.max(0,Math.min(1,(parseFloat($('tvMin').value)||0)/100)); body.accept_max=Math.max(0,Math.min(1,(parseFloat($('tvMax').value)||100)/100)); }
       const h=await authHeaders();
       const r=await fetch("/api/paper/session",{method:"POST",headers:h,body:JSON.stringify(body)}).then(function(x){return x.json();}).catch(function(e){return {error:String(e)};});
       if(r.error){ let msg=r.error; if(r.next_open) msg+=" Réouverture "+tvFmtET(r.next_open)+" HE — dans "+tvCountdown(r.next_open)+". La crypto reste disponible."; $('tvMsg').innerHTML='<span class="dn">'+msg+'</span>'; }
       else{ $('tvMsg').innerHTML='<span class="up">Session #'+r.session_id+" ouverte ("+money(budget)+'). Propositions dans « Bot sous tutelle ».</span>'; if(typeof refreshPaper==="function") refreshPaper(); }
     };
-    tvPopulatePairs(); if($('tvBuy'))$('tvBuy').classList.add("primary");
+    tvPopulatePairs(); if($('tvBandWrap'))$('tvBandWrap').style.display="";
     tvRefreshMarket(); tvRefreshPrices();
     setInterval(tvRefreshPrices,5000); setInterval(tvRefreshMarket,30000); setInterval(tvRenderStatus,1000);
   })();
