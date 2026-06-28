@@ -6,11 +6,11 @@
 <title>Agent Forex — Aperçu du compte</title>
 <style>
   :root{
-    --bg:#EEF0F4; --card:#FFFFFF; --ink:#171A21; --muted:#8B90A0; --faint:#B9BEC9;
-    --line:#EAECF1; --blue:#2F6BFF; --blue-soft:#EAF0FF; --green:#15A971;
-    --green-soft:#E7F7F0; --coral:#EE5A42; --coral-soft:#FDECE8; --amber:#E0902F;
-    --amber-soft:#FBF0E0; --shadow:0 1px 2px rgba(20,24,33,.04),0 8px 24px rgba(20,24,33,.05);
-    --radius:16px;
+    --bg:#F4F5F6; --card:#FFFFFF; --ink:#313C44; --muted:#708090; --faint:#AAB2BB;
+    --line:#E4E7EA; --blue:#36454F; --blue-soft:#EEF1F2; --green:#1F9D6B;
+    --green-soft:#EAF6F0; --coral:#CF4B4B; --coral-soft:#FBECEC; --amber:#B8862F;
+    --amber-soft:#F5EDDE; --shadow:0 1px 2px rgba(54,69,79,.05),0 6px 20px rgba(54,69,79,.05);
+    --radius:12px;
   }
   [data-theme="dark"]{
     --bg:#0D1015; --card:#161A22; --ink:#EDEFF3; --muted:#8A91A1; --faint:#5A6172;
@@ -323,6 +323,22 @@
   .lockbar b{display:block;font-size:13px}
   .lockbar.safe b{color:var(--green)}.lockbar.open b{color:var(--coral)}
   .lockbar .lk-d{color:var(--muted);font-size:12px;margin-top:1px}
+  /* ====== Vue Trading (Modern Minimalist) ====== */
+  @keyframes tvFlashUp{0%{background:var(--green-soft)}100%{background:transparent}}
+  @keyframes tvFlashDn{0%{background:var(--coral-soft)}100%{background:transparent}}
+  .tv-up{animation:tvFlashUp .5s ease-out}
+  .tv-dn{animation:tvFlashDn .5s ease-out}
+  @media (prefers-reduced-motion: reduce){.tv-up,.tv-dn{animation:none}}
+  .tvgrid{display:grid;grid-template-columns:300px 1fr 320px;gap:14px;align-items:start;margin-top:14px}
+  @media(max-width:1100px){.tvgrid{grid-template-columns:1fr}}
+  .tvrow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px}
+  .tvrow:hover{background:var(--bg)} .tvrow.sel{background:var(--blue-soft)}
+  .tvpair{font-weight:700;color:var(--ink);font-size:13.5px}
+  .tvpx{font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  .tvsub{font-size:11.5px;color:var(--muted)}
+  .up{color:var(--green)} .down,.dn{color:var(--coral)}
+  .tvtag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--bg);color:var(--muted)}
+  .tvtag.buy{background:var(--green-soft);color:var(--green)} .tvtag.sell{background:var(--coral-soft);color:var(--coral)}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -345,6 +361,7 @@
     <div class="brand"><div class="logo">◈</div><b>Agent Forex</b></div>
     <div class="navlabel">Pilotage</div>
     <div class="nav active" data-view="apercu"><span class="ic">▤</span> Aperçu du compte</div>
+    <div class="nav" data-view="trading"><span class="ic">↗</span> Trading</div>
     <div class="nav" data-view="bot"><span class="ic">🤖</span> Bot sous tutelle</div>
     <div class="navlabel">Données</div>
     <div class="nav" data-view="apercu"><span class="ic">◷</span> Signaux</div>
@@ -746,6 +763,31 @@
           <div id="learning"><div class="empty">Pas encore assez de trades.</div></div></div>
       </div>
     </section>
+    <section class="view" id="view-trading">
+      <div class="card" style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+        <div><div class="cap">Marché</div>
+          <select id="tvMarket" class="fld" style="min-width:130px"><option value="forex">Forex</option><option value="crypto">Crypto</option></select></div>
+        <div><div class="cap">Instrument</div>
+          <select id="tvPair" class="fld" style="min-width:175px"></select></div>
+        <div id="tvMktStatus" class="badge" style="margin-left:auto">…</div>
+      </div>
+      <div class="tvgrid">
+        <div class="card"><h3>Marchés</h3><div id="tvWatch" style="margin-top:6px"><div class="cap">Chargement…</div></div></div>
+        <div class="card"><h3 id="tvChartTitle">—</h3>
+          <div id="tvBig" class="tvpx" style="font-size:26px;margin:8px 0">—</div>
+          <div id="tvMetrics" class="cap">Sélectionnez un instrument pour voir le signal courant.</div></div>
+        <div class="card"><h3>Passer un ordre</h3>
+          <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
+            <button class="btn" id="tvBuy">Achat</button><button class="btn" id="tvSell">Vente</button></div>
+          <div class="field"><label class="cap">Budget de session (CAD)</label><input id="tvBudget" class="fld" value="500"></div>
+          <div class="field"><label><input type="checkbox" id="tvAcceptOn"> Auto-valider si confiance dans l'intervalle</label>
+            <div style="display:flex;gap:10px;margin-top:6px">
+              <div style="flex:1"><span class="cap">Min %</span><input id="tvMin" class="fld" value="70"></div>
+              <div style="flex:1"><span class="cap">Max %</span><input id="tvMax" class="fld" value="90"></div></div></div>
+          <button class="btn primary" id="tvLaunch" style="width:100%;justify-content:center;margin-top:8px">Lancer la session</button>
+          <div id="tvMsg" class="cap" style="margin-top:10px"></div></div>
+      </div>
+    </section>
   </main>
   <div class="scrim" id="scrim"></div>
   <div class="toasts" id="toasts"></div>
@@ -820,12 +862,13 @@
 
   /* routeur de vues */
   const TITLES={apercu:['Aperçu du compte','EUR/USD · EUR/CAD — compte de démonstration'],
+    trading:['Trading','Forex en direct · crypto en cours d\'intégration'],
     bot:['Bot sous tutelle','Cours réels · capital fictif · validation 30 jours']};
   function showView(v){
     if(!TITLES[v])v='apercu';
     document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+v));
     document.querySelectorAll('.nav[data-view]').forEach(n=>n.classList.toggle('active',
-      n.dataset.view===v && (v==='bot'? n.textContent.includes('Bot') : n.textContent.includes('Aperçu'))));
+      n.dataset.view===v && (v==='bot'? n.textContent.includes('Bot') : (v==='trading'? n.textContent.includes('Trading') : n.textContent.includes('Aperçu')))));
     $('viewTitle').textContent=TITLES[v][0];$('viewSub').textContent=TITLES[v][1];
     renderAll();
   }
@@ -1153,6 +1196,74 @@
     refreshPaper();
   }; })();
   refreshPaper(); setInterval(refreshPaper, 8000);
+
+  /* ============ VUE TRADING (watchlist + flash + statut marché + ticket) ============ */
+  let TVprev={}, TVsel=null, TVside="buy", TVmkt=null;
+  const FOREX_MAJORS=["EUR_USD","EUR_CAD","GBP_USD","USD_JPY","USD_CAD","AUD_USD"];
+  const CRYPTO_LIST=["BTC_USD","ETH_USD"];
+  function tvList(){ return ($('tvMarket')&&$('tvMarket').value==="crypto")?CRYPTO_LIST:FOREX_MAJORS; }
+  function tvPopulatePairs(){
+    const sel=$('tvPair'); if(!sel)return; const m=$('tvMarket').value, list=tvList();
+    sel.innerHTML=list.map(function(pr){return '<option value="'+pr+'">'+pr.replace("_","/")+(m==="crypto"?" (bientôt)":"")+'</option>';}).join('');
+    if(!TVsel||list.indexOf(TVsel)<0){ TVsel=list[0]; sel.value=TVsel; }
+  }
+  function tvFmtET(iso){ try{ return new Date(iso).toLocaleString("fr-CA",{timeZone:"America/Toronto",weekday:"short",hour:"2-digit",minute:"2-digit"}); }catch(e){ return iso; } }
+  function tvCountdown(iso){ const ms=new Date(iso)-new Date(); if(ms<=0)return "imminent"; const h=Math.floor(ms/3.6e6), mn=Math.floor(ms%3.6e6/6e4); return (h>0?h+" h ":"")+mn+" m"; }
+  async function tvRefreshMarket(){ try{ TVmkt=await API("/api/market"); }catch(e){ TVmkt=null; } tvRenderStatus(); }
+  function tvRenderStatus(){
+    const el=$('tvMktStatus'); if(!el)return;
+    if($('tvMarket')&&$('tvMarket').value==="crypto"){ el.textContent="● Crypto — 24/7"; el.style.color="var(--green)"; return; }
+    if(!TVmkt){ el.textContent="statut indisponible"; el.style.color="var(--muted)"; return; }
+    if(TVmkt.forex_open){ el.textContent="● Marché ouvert"; el.style.color="var(--green)"; }
+    else{ el.textContent="○ Forex fermé · réouvre "+tvFmtET(TVmkt.next_open)+" HE · dans "+tvCountdown(TVmkt.next_open); el.style.color="var(--amber)"; }
+  }
+  async function tvRefreshPrices(){
+    let data; try{ data=await API("/api/signals"); }catch(e){ return; }
+    const map={}; ((data&&data.signals)||[]).forEach(function(s){ map[s.instrument]=s; });
+    const m=$('tvMarket').value, list=tvList(), el=$('tvWatch'); if(!el)return;
+    el.innerHTML=list.map(function(pair){
+      const s=map[pair], price=(s&&s.price)?((s.price.bid+s.price.ask)/2):null, prev=TVprev[pair];
+      let fl=""; if(price!=null&&prev!=null){ fl=price>prev?"tv-up":(price<prev?"tv-dn":""); }
+      if(price!=null) TVprev[pair]=price;
+      const dec=pair.indexOf("JPY")>=0?3:5, pxs=price!=null?price.toFixed(dec):"—";
+      let tag='<span class="tvtag">—</span>';
+      if(s&&s.error) tag='<span class="tvtag">indispo</span>';
+      else if(s) tag=s.has_signal?('<span class="tvtag '+(s.side==="sell"?"sell":"buy")+'">'+(s.side==="sell"?"vente":"achat")+" "+Math.round(s.confidence*100)+'%</span>'):'<span class="tvtag">aucun signal</span>';
+      const sub=(m==="crypto")?"via Alpaca (bientôt)":(s&&s.price?("spread "+((s.price.ask-s.price.bid)*10000).toFixed(1)+" pip"):"—");
+      return '<div class="tvrow '+(pair===TVsel?"sel ":"")+fl+'" data-pair="'+pair+'"><span class="tvpair">'+pair.replace("_","/")+'</span><span class="tvpx">'+pxs+'</span><span class="tvsub">'+sub+'</span><span style="text-align:right">'+tag+'</span></div>';
+    }).join("");
+    const s=map[TVsel];
+    if($('tvChartTitle')) $('tvChartTitle').textContent=TVsel?TVsel.replace("_","/"):"—";
+    const price=(s&&s.price)?((s.price.bid+s.price.ask)/2):null;
+    if($('tvBig')) $('tvBig').textContent=price!=null?price.toFixed(TVsel&&TVsel.indexOf("JPY")>=0?3:5):"—";
+    if($('tvMetrics')){
+      if(s&&s.has_signal) $('tvMetrics').innerHTML="Signal "+(s.side==="sell"?"vente":"achat")+" · conf "+Math.round(s.confidence*100)+"% · entrée "+s.entry+" · stop "+s.stop+" · objectif "+s.take_profit;
+      else if(s&&s.error) $('tvMetrics').textContent="Données indisponibles pour cet instrument.";
+      else $('tvMetrics').textContent="Aucun signal courant — inaction par défaut.";
+    }
+  }
+  (function(){
+    const w=$('tvWatch'); if(w) w.addEventListener("click",function(e){ const r=e.target.closest("[data-pair]"); if(!r)return; TVsel=r.dataset.pair; if($('tvPair'))$('tvPair').value=TVsel; tvRefreshPrices(); });
+    if($('tvMarket')) $('tvMarket').onchange=function(){ tvPopulatePairs(); tvRenderStatus(); tvRefreshPrices(); };
+    if($('tvPair')) $('tvPair').onchange=function(){ TVsel=$('tvPair').value; tvRefreshPrices(); };
+    if($('tvBuy')) $('tvBuy').onclick=function(){ TVside="buy"; $('tvBuy').classList.add("primary"); $('tvSell').classList.remove("primary"); };
+    if($('tvSell')) $('tvSell').onclick=function(){ TVside="sell"; $('tvSell').classList.add("primary"); $('tvBuy').classList.remove("primary"); };
+    if($('tvLaunch')) $('tvLaunch').onclick=async function(){
+      const m=$('tvMarket').value;
+      if(m==="crypto"){ $('tvMsg').innerHTML='<span class="dn">La crypto est en cours d’intégration (cours seulement). Exécution bientôt.</span>'; return; }
+      const budget=parseInt($('tvBudget').value,10)||0;
+      const body={budget:budget, asset:"forex", profile:"doux", risk_level:"doux"};
+      if($('tvAcceptOn')&&$('tvAcceptOn').checked){ body.accept_min=Math.max(0,Math.min(1,(parseFloat($('tvMin').value)||0)/100)); body.accept_max=Math.max(0,Math.min(1,(parseFloat($('tvMax').value)||100)/100)); }
+      const h=await authHeaders();
+      const r=await fetch("/api/paper/session",{method:"POST",headers:h,body:JSON.stringify(body)}).then(function(x){return x.json();}).catch(function(e){return {error:String(e)};});
+      if(r.error){ let msg=r.error; if(r.next_open) msg+=" Réouverture "+tvFmtET(r.next_open)+" HE — dans "+tvCountdown(r.next_open)+". La crypto reste disponible."; $('tvMsg').innerHTML='<span class="dn">'+msg+'</span>'; }
+      else{ $('tvMsg').innerHTML='<span class="up">Session #'+r.session_id+" ouverte ("+money(budget)+'). Propositions dans « Bot sous tutelle ».</span>'; if(typeof refreshPaper==="function") refreshPaper(); }
+    };
+    tvPopulatePairs(); if($('tvBuy'))$('tvBuy').classList.add("primary");
+    tvRefreshMarket(); tvRefreshPrices();
+    setInterval(tvRefreshPrices,5000); setInterval(tvRefreshMarket,30000); setInterval(tvRenderStatus,1000);
+  })();
+
   (function(){
     const pb=$('pauseBtn'); if(pb) pb.onclick=async function(){
       const running=PAPER.running!==false; const h=await authHeaders();
