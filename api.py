@@ -48,10 +48,10 @@ def _memo(key, ttl, producer):
     return val
 
 
-def _data():
-    """Instancie OandaData paresseusement (évite l'erreur si pas de token)."""
+def _data(account="practice"):
+    """Instancie OandaData pour le compte demandé (practice/live)."""
     from oanda_data import OandaData
-    return OandaData()
+    return OandaData(account=account)
 
 
 def _signal_to_dict(sig, price: Optional[dict]):
@@ -88,13 +88,13 @@ def status():
 
 
 @app.get("/api/account")
-def account():
-    """Solde / NAV réels du compte OANDA. 503 si identifiants absents/invalides."""
+def account(mode: str = "pratique"):
+    """Solde / NAV du compte lié au mode (pratique/apprentissage=practice, reel=live)."""
+    acc = "live" if mode == "reel" else "practice"
     def produce():
-        od = _data()
-        return od.get_account_summary()
+        return _data(acc).get_account_summary()
     try:
-        return _memo("account", 10, produce)
+        return _memo("account_" + acc, 10, produce)
     except Exception as e:
         return {"error": "compte indisponible", "detail": str(e)}
 
@@ -376,6 +376,29 @@ def _forex_closes_at(now):
     if cand <= now:
         cand = cand + timedelta(days=7)
     return cand
+
+
+@app.get("/api/real-eligibility")
+def real_eligibility():
+    """Le mode Réel est-il autorisé ? Exige un verdict GO (Maîtrise 30j) ET un
+    compte live configuré. Sert de gate côté UI (l'exécution reste aussi
+    verrouillée par LIVE_TRADING côté serveur)."""
+    from market_mastery import evaluate
+    try:
+        trades = _closed_trades()
+        base = 5000.0; eq = [base]
+        for t in trades:
+            base += t.pnl; eq.append(round(base, 2))
+        v = evaluate(trades, eq)
+        live = getattr(config, "ACCOUNTS", {}).get("live", {})
+        live_ok = bool(live.get("token") and live.get("account_id"))
+        reasons = list(v.reasons)
+        if not live_ok:
+            reasons.append("compte réel OANDA non configuré")
+        return _clean({"eligible": bool(v.go and live_ok), "verdict_go": bool(v.go),
+                       "live_configured": live_ok, "reasons": reasons})
+    except Exception as e:
+        return {"eligible": False, "reasons": [str(e)]}
 
 
 @app.get("/api/market")

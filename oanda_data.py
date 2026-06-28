@@ -22,27 +22,31 @@ def rfc3339(dt):
 
 
 class OandaData(DataProvider):
-    def __init__(self, cache: Cache = None, account_currency=None):
+    def __init__(self, cache: Cache = None, account_currency=None, account="practice"):
         self.cache = cache or Cache()
         self.account_ccy = account_currency or config.ACCOUNT_CURRENCY
         self._api = None
+        acc = getattr(config, "ACCOUNTS", {}).get(account, {})
+        self._token = acc.get("token") or config.OANDA_TOKEN
+        self._account_id = acc.get("account_id") or config.OANDA_ACCOUNT_ID
+        self._env = acc.get("env") or config.ENVIRONMENT
 
     def _ensure_api(self):
         if self._api is None:
-            if not config.OANDA_TOKEN or not config.OANDA_ACCOUNT_ID:
+            if not self._token or not self._account_id:
                 raise RuntimeError(
-                    "OANDA_TOKEN et OANDA_ACCOUNT_ID requis (variables "
+                    "Identifiants OANDA requis pour ce compte (variables "
                     "d'environnement). Voir .env.example.")
             import oandapyV20
-            self._api = oandapyV20.API(access_token=config.OANDA_TOKEN,
-                                       environment=config.ENVIRONMENT)
+            self._api = oandapyV20.API(access_token=self._token,
+                                       environment=self._env)
         return self._api
 
     # -- compte --------------------------------------------------------------
     def get_account_summary(self):
         import oandapyV20.endpoints.accounts as accounts
         api = self._ensure_api()
-        r = accounts.AccountSummary(config.OANDA_ACCOUNT_ID)
+        r = accounts.AccountSummary(self._account_id)
         api.request(r)
         a = r.response["account"]
         return {"id": a.get("id"), "currency": a.get("currency"),
@@ -56,7 +60,7 @@ class OandaData(DataProvider):
         """Noms OANDA des instruments tradables (CURRENCY + METAL), ex. EUR_USD, XAU_USD."""
         import oandapyV20.endpoints.accounts as accounts
         api = self._ensure_api()
-        r = accounts.AccountInstruments(config.OANDA_ACCOUNT_ID)
+        r = accounts.AccountInstruments(self._account_id)
         api.request(r)
         return [i["name"] for i in r.response.get("instruments", [])
                 if i.get("type") in ("CURRENCY", "METAL")]
@@ -113,7 +117,7 @@ class OandaData(DataProvider):
         import oandapyV20.endpoints.pricing as pricing
         pair = normalize_pair(pair)
         api = self._ensure_api()
-        r = pricing.PricingInfo(config.OANDA_ACCOUNT_ID, params={"instruments": pair})
+        r = pricing.PricingInfo(self._account_id, params={"instruments": pair})
         api.request(r)
         p = r.response["prices"][0]
         return {"bid": float(p["bids"][0]["price"]), "ask": float(p["asks"][0]["price"])}

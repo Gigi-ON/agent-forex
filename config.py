@@ -59,6 +59,15 @@ HARD_LIMITS = {
     "min_reward_risk_ratio": 1.5,
 }
 
+# --- Comptes OANDA (practice / live) ---------------------------------------
+# Le compte "practice" reprend les variables existantes (aucun changement requis
+# au .env actuel). Le compte "live" n'est utilisé qu'au mode Réel armé.
+ACCOUNTS = {
+    "practice": {"token": OANDA_TOKEN, "account_id": OANDA_ACCOUNT_ID, "env": "practice"},
+    "live": {"token": os.environ.get("OANDA_LIVE_TOKEN", ""),
+             "account_id": os.environ.get("OANDA_LIVE_ACCOUNT_ID", ""), "env": "live"},
+}
+
 # --- Kraken (crypto) -------------------------------------------------------
 # Les COURS utilisent l'API publique Kraken (AUCUNE clé requise). Les clés ne
 # servent qu'à l'exécution future (après gate GO + double auth).

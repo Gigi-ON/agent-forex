@@ -341,6 +341,11 @@
   .up{color:var(--green)} .down,.dn{color:var(--coral)}
   .tvtag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--bg);color:var(--muted)}
   .tvtag.buy{background:var(--green-soft);color:var(--green)} .tvtag.sell{background:var(--coral-soft);color:var(--coral)}
+  .modal{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(20,24,33,.45);overflow-y:auto}
+  .modal.hidden{display:none}
+  .modal .mbox{width:100%;max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
+  .modal input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px;font-family:inherit}
+  .modal .err{color:var(--coral);font-size:12.5px;min-height:16px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -821,6 +826,22 @@
         <div id="pgActivite"><div class="cap">Chargement…</div></div></div>
     </section>
   </main>
+  <div class="modal hidden" id="realModal">
+    <div class="mbox">
+      <h3 style="margin-bottom:8px">Activer le mode Réel</h3>
+      <div class="cap" style="margin-bottom:12px">Argent réel. Confirme ton mot de passe, puis saisis le code envoyé par e-mail.</div>
+      <div class="err" id="realErr" style="margin-bottom:8px"></div>
+      <div id="realPw">
+        <input id="realPassword" type="password" placeholder="Mot de passe" style="margin-bottom:10px">
+        <button class="btn primary" id="realPwBtn" style="width:100%;justify-content:center">Continuer</button>
+      </div>
+      <div id="realOtp" style="display:none">
+        <input id="realCode" placeholder="Code reçu par e-mail" style="margin-bottom:10px">
+        <button class="btn primary" id="realOtpBtn" style="width:100%;justify-content:center">Vérifier et activer</button>
+      </div>
+      <div style="text-align:center;margin-top:12px"><a id="realCancel" class="cap" style="cursor:pointer;color:var(--blue)">Annuler</a></div>
+    </div>
+  </div>
   <div class="scrim" id="scrim"></div>
   <div class="toasts" id="toasts"></div>
 </div>
@@ -887,7 +908,7 @@
   let state={balance:5000,sessions:[],pending:[],running:true,tutelle:'manuel',sid:0,pid:0,
     appMode:'pratique',inbox:[],history:[],reports:[],learnedMin:0,bands:null,enoughData:false};
   // Phase 1 — instantané du compte renvoyé par l'API (compte démo OANDA pour l'instant).
-  let LIVE={account:null,status:null};
+  let LIVE={account:null,status:null,real:null};
   const reserved=()=>state.sessions.filter(s=>s.active).reduce((a,s)=>a+s.alloc,0);
   const available=()=>state.balance-reserved();
   const activeCount=()=>state.sessions.filter(s=>s.active).length;
@@ -928,8 +949,10 @@
     const m=state.appMode||'pratique';
     const acc=LIVE.account, online=acc&&!acc.error;
     if(m==='reel'){
-      $('acctBal').textContent='—';$('acctAvail').textContent='—';
-      setStatus('Réel — compte non configuré','red');return;
+      const a=LIVE.real;
+      if(a&&!a.error&&a.balance!=null){ const ccy=a.currency||''; $('acctBal').textContent=fmt(a.balance,ccy); $('acctAvail').textContent=fmt(a.balance,ccy); if($('acctCcy'))$('acctCcy').textContent=ccy||'—'; setStatus('Réel — exécution VERROUILLÉE','red'); }
+      else { $('acctBal').textContent='—';$('acctAvail').textContent='—'; setStatus('Réel — compte non configuré','red'); }
+      return;
     }
     if(!online){
       $('acctBal').textContent='—';$('acctAvail').textContent='—';
@@ -1081,7 +1104,7 @@
   }
   $('modeSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;const m=b.dataset.m;
     if(m===state.appMode)return;
-    if(m==='reel'&&!confirm("Mode RÉEL — de l'argent réel sera engagé.\n\nÀ n'activer qu'après un verdict positif du mode Apprentissage (30 jours sur données réelles). L'exécution reste verrouillée côté serveur tant que LIVE_TRADING n'est pas activé.\n\nContinuer ?"))return;
+    if(m==='reel'){ tryEnterReal(); return; }
     setMode(m);};
 
   /* ============ AUTHENTIFICATION SUPABASE ============ */
@@ -1425,6 +1448,47 @@
   }
   const PAGE_RENDER={signaux:renderSignauxPage,risque:renderRisquePage,historique:renderHistoriquePage,backtest:renderBacktestPage,maitrise:renderMaitrisePage,prudence:renderPrudencePage,activite:renderActivitePage};
   side.querySelectorAll('.nav[data-view]').forEach(function(n){ n.addEventListener('click',function(){ const v=n.dataset.view; if(PAGE_RENDER[v]) PAGE_RENDER[v](); }); });
+
+
+  /* ============ Passage en Réel : gate verdict GO + double authentification ============ */
+  function _rm(id){ return document.getElementById(id); }
+  function realErr(t){ const e=_rm('realErr'); if(e) e.textContent=t||""; }
+  function showRealModal(v){ const md=_rm('realModal'); if(md) md.classList.toggle('hidden',!v); }
+  async function tryEnterReal(){
+    let elig; try{ elig=await API('/api/real-eligibility'); }catch(e){ elig=null; }
+    if(!elig||!elig.eligible){
+      const why=(elig&&elig.reasons&&elig.reasons.length)?(" : "+elig.reasons.join(" · ")):"";
+      botAlert('rejected','Mode Réel verrouillé',"La Maîtrise 30 j doit rendre un verdict GO et un compte réel doit être configuré"+why+".",'red');
+      return;
+    }
+    realErr(""); _rm('realPw').style.display=""; _rm('realOtp').style.display="none";
+    if(_rm('realPassword'))_rm('realPassword').value=""; if(_rm('realCode'))_rm('realCode').value="";
+    showRealModal(true);
+  }
+  (function(){
+    async function _email(){ if(!sb)return null; const {data}=await sb.auth.getSession(); return (data&&data.session&&data.session.user)?data.session.user.email:null; }
+    const pwb=_rm('realPwBtn'); if(pwb) pwb.onclick=async function(){
+      realErr("");
+      if(!sb){ realErr("Authentification indisponible."); return; }
+      const email=await _email(); if(!email){ realErr("Session expirée — reconnecte-toi."); return; }
+      const r=await sb.auth.signInWithPassword({email:email,password:_rm('realPassword').value}).catch(function(e){return {error:e};});
+      if(r.error){ realErr("Mot de passe incorrect."); return; }
+      const o=await sb.auth.signInWithOtp({email:email,options:{shouldCreateUser:false}}).catch(function(e){return {error:e};});
+      if(o.error){ realErr("Envoi du code impossible : "+((o.error&&o.error.message)||o.error)); return; }
+      _rm('realPw').style.display="none"; _rm('realOtp').style.display=""; realErr("Code envoyé à "+email+".");
+    };
+    const otpb=_rm('realOtpBtn'); if(otpb) otpb.onclick=async function(){
+      realErr("");
+      const email=await _email(); const code=(_rm('realCode').value||"").trim();
+      const v=await sb.auth.verifyOtp({email:email,token:code,type:'email'}).catch(function(e){return {error:e};});
+      if(v.error){ realErr("Code invalide ou expiré."); return; }
+      showRealModal(false); setMode('reel');
+      try{ LIVE.real=await API('/api/account?mode=reel'); }catch(e){ LIVE.real=null; }
+      renderAccountCard();
+      botAlert('info','Mode Réel armé',"Authentification réussie. L'exécution reste soumise au verrou serveur LIVE_TRADING.",'amber');
+    };
+    const c=_rm('realCancel'); if(c) c.onclick=function(){ showRealModal(false); };
+  })();
 
 </script>
 </body>
