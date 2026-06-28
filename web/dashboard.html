@@ -364,11 +364,12 @@
     <div class="nav" data-view="trading"><span class="ic">↗</span> Trading</div>
     <div class="nav" data-view="bot"><span class="ic">🤖</span> Bot sous tutelle</div>
     <div class="navlabel">Données</div>
-    <div class="nav" data-view="apercu"><span class="ic">◷</span> Signaux</div>
-    <div class="nav" data-view="apercu"><span class="ic">⚖</span> Gestion du risque</div>
-    <div class="nav" data-view="apercu"><span class="ic">≣</span> Historique</div>
-    <div class="nav" data-view="apercu"><span class="ic">▦</span> Backtest</div>
-    <div class="nav" data-view="apercu"><span class="ic">◴</span> Prudence macro</div>
+    <div class="nav" data-view="signaux"><span class="ic">◷</span> Signaux</div>
+    <div class="nav" data-view="risque"><span class="ic">⚖</span> Gestion du risque</div>
+    <div class="nav" data-view="historique"><span class="ic">≣</span> Historique</div>
+    <div class="nav" data-view="backtest"><span class="ic">▦</span> Backtest</div>
+    <div class="nav" data-view="maitrise"><span class="ic">◎</span> Maîtrise 30 j</div>
+    <div class="nav" data-view="prudence"><span class="ic">◴</span> Prudence macro</div>
     <div class="acct">
       <div class="row"><span>Solde commun</span><b id="acctBal">5 000 $</b></div>
       <div class="row"><span>Disponible</span><b id="acctAvail">5 000 $</b></div>
@@ -788,6 +789,30 @@
           <div id="tvMsg" class="cap" style="margin-top:10px"></div></div>
       </div>
     </section>
+    <section class="view" id="view-signaux">
+      <div class="card"><h3>Signaux courants</h3><div class="cap" style="margin:3px 0 12px">Le raisonnement derrière chaque instrument — aucune promesse, juste l'état du moteur.</div>
+        <div id="pgSignaux"><div class="cap">Chargement…</div></div></div>
+    </section>
+    <section class="view" id="view-risque">
+      <div class="card"><h3>Gestion du risque</h3><div class="cap" style="margin:3px 0 12px">Plafonds durs, exposition courante et verrou d'exécution.</div>
+        <div id="pgRisque"><div class="cap">Chargement…</div></div></div>
+    </section>
+    <section class="view" id="view-historique">
+      <div class="card"><h3>Historique &amp; post-mortem</h3><div class="cap" style="margin:3px 0 12px">Trades clôturés et espérance en R — la vraie mesure de viabilité.</div>
+        <div id="pgHistorique"><div class="cap">Chargement…</div></div></div>
+    </section>
+    <section class="view" id="view-backtest">
+      <div class="card"><h3>Backtest &amp; robustesse</h3><div class="cap" style="margin:3px 0 12px">L'edge survit-il sous friction ×2 et sur les trois segments ?</div>
+        <div id="pgBacktest"><div class="cap">Chargement…</div></div></div>
+    </section>
+    <section class="view" id="view-maitrise">
+      <div class="card"><h3>Maîtrise 30 jours</h3><div class="cap" style="margin:3px 0 12px">Le sas vers le réel : verdict go/no-go sur données réelles.</div>
+        <div id="pgMaitrise"><div class="cap">Chargement…</div></div></div>
+    </section>
+    <section class="view" id="view-prudence">
+      <div class="card"><h3>Prudence macro</h3><div class="cap" style="margin:3px 0 12px">Modulation par l'actualité et blackouts autour des annonces.</div>
+        <div id="pgPrudence"><div class="cap">Chargement…</div></div></div>
+    </section>
   </main>
   <div class="scrim" id="scrim"></div>
   <div class="toasts" id="toasts"></div>
@@ -863,12 +888,18 @@
   /* routeur de vues */
   const TITLES={apercu:['Aperçu du compte','EUR/USD · EUR/CAD — compte de démonstration'],
     trading:['Trading','Forex en direct · crypto en cours d\'intégration'],
+    signaux:['Signaux','Le raisonnement du moteur, par instrument'],
+    risque:['Gestion du risque','Plafonds durs · exposition · verrou'],
+    historique:['Historique','Trades clôturés · post-mortem'],
+    backtest:['Backtest','Robustesse sous friction et par segments'],
+    maitrise:['Maîtrise 30 j','Verdict go/no-go vers le réel'],
+    prudence:['Prudence macro','Actualité et blackouts'],
     bot:['Bot sous tutelle','Cours réels · capital fictif · validation 30 jours']};
   function showView(v){
     if(!TITLES[v])v='apercu';
     document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+v));
     document.querySelectorAll('.nav[data-view]').forEach(n=>n.classList.toggle('active',
-      n.dataset.view===v && (v==='bot'? n.textContent.includes('Bot') : (v==='trading'? n.textContent.includes('Trading') : n.textContent.includes('Aperçu')))));
+      n.dataset.view===v));
     $('viewTitle').textContent=TITLES[v][0];$('viewSub').textContent=TITLES[v][1];
     renderAll();
   }
@@ -1282,6 +1313,76 @@
       const o=$('orb'); if(o&&PAPER) o.className='orb '+(PAPER.running===false?'paused':'run');
     };
   })();
+
+
+  /* ============ PAGES ANALYTIQUES (branchées aux endpoints) ============ */
+  function _kpis(arr){ return '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px">'+arr.map(function(x){return '<div class="card" style="margin:0;box-shadow:none"><div class="cap">'+x[0]+'</div><div style="font-size:18px;font-weight:800;color:var(--ink)">'+x[1]+'</div></div>';}).join('')+'</div>'; }
+  function _row(html){ return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)">'+html+'</div>'; }
+
+  async function renderSignauxPage(){
+    const el=$('pgSignaux'); if(!el)return;
+    let d; try{ d=await API('/api/signals'); }catch(e){ el.innerHTML='<div class="cap">API indisponible.</div>'; return; }
+    const sigs=(d&&d.signals)||[];
+    if(!sigs.length){ el.innerHTML='<div class="cap">Aucun signal (marché fermé ou données indisponibles).</div>'; return; }
+    el.innerHTML=sigs.map(function(s){
+      if(s.error) return _row('<b>'+s.instrument.replace('_','/')+'</b><span class="cap">indisponible</span>');
+      const tag=s.has_signal?('<span class="tvtag '+(s.side==='sell'?'sell':'buy')+'">'+(s.side==='sell'?'vente':'achat')+' '+Math.round(s.confidence*100)+'%</span>'):'<span class="tvtag">aucun signal — inaction</span>';
+      const det=s.has_signal?(' · entrée '+s.entry+' · stop '+s.stop+' · objectif '+s.take_profit):'';
+      return '<div style="padding:10px 12px;border-bottom:1px solid var(--line)"><div style="display:flex;align-items:center;gap:8px"><b>'+s.instrument.replace('_','/')+'</b> '+tag+'</div><div class="cap" style="margin-top:4px">'+((s.notes||[]).join(' · '))+det+'</div></div>';
+    }).join('');
+  }
+
+  async function renderRisquePage(){
+    const el=$('pgRisque'); if(!el)return;
+    let st=null,pp=null;
+    try{ st=await API('/api/status'); }catch(e){}
+    try{ pp=await API('/api/paper'); }catch(e){}
+    let h=_kpis([['Risque max / trade','2,0 %'],['Perte journalière max','4,0 %'],['Levier max','10×'],['Positions max','3'],['Ratio gain/risque min','1,5 : 1']]);
+    if(pp) h+=_row('<b>Exposition courante</b><span class="cap">'+pp.positions.length+' position(s) · risque engagé '+money(pp.open_risk)+'</span><span style="margin-left:auto" class="'+(pp.daily_halted?'dn':'up')+'">'+(pp.daily_halted?'coupe-circuit ACTIF':'sous les plafonds')+'</span>');
+    if(st) h+=_row('<b>Verrou d\'exécution réelle</b><span class="cap">env '+st.environment+' · LIVE_TRADING '+(st.live_trading?'activé':'désactivé')+'</span><span style="margin-left:auto">'+(st.real_execution_possible?'<span class="dn">LEVÉ</span>':'<span class="up">ACTIF</span>')+'</span>');
+    el.innerHTML=h;
+  }
+
+  async function renderHistoriquePage(){
+    const el=$('pgHistorique'); if(!el)return;
+    let d; try{ d=await API('/api/journal'); }catch(e){ el.innerHTML='<div class="cap">API indisponible.</div>'; return; }
+    const pm=d&&d.post_mortem;
+    if(!pm||!pm.trades){ el.innerHTML='<div class="cap">Aucun trade clôturé pour l\'instant. L\'historique se remplira dès que le bot aura tradé.</div>'; return; }
+    let h=_kpis([['Trades',pm.trades],['Réussite',pm.win_rate+' %'],['Espérance',(pm.expectancy_R>=0?'+':'')+pm.expectancy_R+' R'],['Total',(pm.total_R>=0?'+':'')+pm.total_R+' R'],['Profit factor',pm.profit_factor==null?'∞':pm.profit_factor]]);
+    h+=(d.recent||[]).slice().reverse().map(function(t){ return _row('<b>'+t.pair.replace('_','/')+'</b><span class="cap">'+t.exit_reason+'</span><span style="margin-left:auto" class="'+(t.pnl>=0?'up':'down')+'">'+(t.pnl>=0?'+':'')+t.pnl+' $ ('+(t.r>=0?'+':'')+t.r+'R)</span>'); }).join('');
+    el.innerHTML=h;
+  }
+
+  async function renderBacktestPage(){
+    const el=$('pgBacktest'); if(!el)return; el.innerHTML='<div class="cap">Calcul en cours…</div>';
+    let d; try{ d=await API('/api/backtest?pair=EUR_USD&gran=M15'); }catch(e){ el.innerHTML='<div class="cap">API indisponible.</div>'; return; }
+    if(d.error){ el.innerHTML='<div class="cap">'+d.error+(d.detail?' — '+d.detail:'')+'</div>'; return; }
+    const r=d.result;
+    let h=_kpis([['Bougies',d.candles],['Trades',r.trades],['Réussite',r.win_rate+' %'],['Rendement',(r.return_pct>=0?'+':'')+r.return_pct+' %'],['Drawdown max',r.max_drawdown_pct+' %']]);
+    const eq=r.equity_curve||[];
+    if(eq.length>1){ const mn=Math.min.apply(null,eq),mx=Math.max.apply(null,eq),W=600,H=120; const pts=eq.map(function(v,i){return (i/(eq.length-1)*W).toFixed(1)+','+(H-(v-mn)/((mx-mn)||1)*H).toFixed(1);}).join(' '); h+='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:120px"><polyline fill="none" stroke="var(--ink)" stroke-width="1.5" points="'+pts+'"/></svg>'; }
+    h+='<pre style="white-space:pre-wrap;font-size:12px;color:var(--muted);margin-top:10px">'+(d.robustness||'')+'</pre>';
+    el.innerHTML=h;
+  }
+
+  async function renderMaitrisePage(){
+    const el=$('pgMaitrise'); if(!el)return;
+    let d; try{ d=await API('/api/mastery'); }catch(e){ el.innerHTML='<div class="cap">API indisponible.</div>'; return; }
+    const v=d&&d.verdict; if(!v){ el.innerHTML='<div class="cap">Indisponible.</div>'; return; }
+    let h=_row(v.go?'<b style="font-size:15px"><span class="up">✓ GO — envisager le réel, à toute petite taille</span></b>':'<b style="font-size:15px"><span class="down">⛔ NO-GO — pas d\'argent réel</span></b>');
+    h+=_kpis([['Trades',v.trades+' / 30'],['Espérance',(v.expectancy_R>=0?'+':'')+v.expectancy_R+' R'],['Réussite',v.win_rate+' %'],['Drawdown',v.max_drawdown_pct+' %'],['Semaines +',v.weeks_positive+'/'+v.weeks_total]]);
+    if(v.reasons&&v.reasons.length) h+='<div class="cap"><b>Points bloquants :</b><br>'+v.reasons.map(function(x){return '✗ '+x;}).join('<br>')+'</div>';
+    el.innerHTML=h;
+  }
+
+  function renderPrudencePage(){
+    const el=$('pgPrudence'); if(!el)return;
+    el.innerHTML='<div class="cap">La couche prudence module le risque autour de l\'actualité : réduction de taille quand l\'incertitude monte, et <b>blackout</b> (aucune entrée) juste avant/après les annonces macro majeures (taux, emploi, inflation). Source : flux MarketPulse + calendrier économique.</div>'
+      +_row('<b>État</b><span class="cap">aucun blackout actif détecté</span><span style="margin-left:auto" class="up">prudence nominale</span>');
+  }
+
+  const PAGE_RENDER={signaux:renderSignauxPage,risque:renderRisquePage,historique:renderHistoriquePage,backtest:renderBacktestPage,maitrise:renderMaitrisePage,prudence:renderPrudencePage};
+  side.querySelectorAll('.nav[data-view]').forEach(function(n){ n.addEventListener('click',function(){ const v=n.dataset.view; if(PAGE_RENDER[v]) PAGE_RENDER[v](); }); });
 
 </script>
 </body>
