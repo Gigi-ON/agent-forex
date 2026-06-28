@@ -744,6 +744,9 @@
         <div class="card"><h3>▶ Lancer une session</h3>
           <div class="cap" style="margin:3px 0 12px">Budget prélevé du capital disponible, rendu (± résultat) à la fin.</div>
           <div class="field"><label>Budget : <b id="allocLabel">2 000 $</b></label><input type="range" id="alloc" min="500" max="5000" step="250" value="2000" style="width:100%"></div>
+          <div class="frow" style="display:flex;gap:12px">
+            <div class="field" style="flex:1"><label>Marché</label><select id="botMarket" class="fld"><option value="forex">Forex</option><option value="crypto">Crypto</option></select></div>
+            <div class="field" style="flex:1"><label>Instrument</label><select id="botPair" class="fld"></select></div></div>
           <div class="frow" style="display:flex;gap:12px"><div class="field" style="flex:1"><label>Option de risque</label>
             <select id="profile" class="fld"><option>Réservé</option><option selected>Doux</option><option>Agressif</option></select></div>
             <div class="field" style="flex:1"><label>Durée</label><select id="duration" class="fld"><option value="60">1 h</option><option value="120" selected>2 h</option><option value="240">4 h</option></select></div></div>
@@ -1247,7 +1250,9 @@
     const budget=parseInt($('alloc').value,10);
     const profMap={'Réservé':'reserve','Doux':'doux','Agressif':'agressif'};
     const profile=profMap[$('profile').value]||'doux';
-    const body={budget:budget, profile:profile, risk_level:profile, duration_min:parseInt($('duration').value,10)};
+    const market=$('botMarket')?$('botMarket').value:'forex';
+    const instrument=$('botPair')?$('botPair').value:null;
+    const body={budget:budget, asset:market, instrument:instrument, profile:profile, risk_level:profile, duration_min:parseInt($('duration').value,10)};
     if($('acceptOn')&&$('acceptOn').checked){
       body.accept_min=Math.max(0,Math.min(1,(parseFloat($('acceptMin').value)||0)/100));
       body.accept_max=Math.max(0,Math.min(1,(parseFloat($('acceptMax').value)||100)/100));
@@ -1258,6 +1263,14 @@
     else botAlert('info','Session ouverte','#'+r.session_id+' — '+money(budget),'');
     refreshPaper();
   }; })();
+  async function botPopulatePairs(){
+    const sel=$('botPair'); if(!sel)return; const m=$('botMarket')?$('botMarket').value:'forex';
+    let list=[]; try{ const d=await API('/api/instruments?asset='+m); list=(d&&d.instruments)||[]; }catch(e){}
+    if(!list.length) list=(m==='crypto')?["BTC/USD","ETH/USD"]:["EUR/USD","EUR/CAD"];
+    sel.innerHTML=list.map(function(pr){return '<option value="'+pr+'">'+pr+'</option>';}).join("");
+  }
+  if($('botMarket')) $('botMarket').onchange=botPopulatePairs;
+  botPopulatePairs();
   refreshPaper(); setInterval(refreshPaper, 8000);
 
   /* ============ VUE TRADING (watchlist + flash + statut marché + ticket) ============ */
