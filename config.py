@@ -86,6 +86,15 @@ FOREX_PRIORITY = [
     "USD/MXN","USD/ZAR","USD/TRY","USD/SGD","USD/NOK","USD/SEK","USD/PLN","USD/CNH",
     "USD/HUF","USD/CZK","EUR/TRY","EUR/NOK","EUR/SEK","EUR/PLN","XAU/USD","XAG/USD",
 ]
+# --- Alpaca (données historiques crypto, LECTURE seule) --------------------
+ALPACA_PAPER_KEY = os.environ.get("ALPACA_PAPER_KEY", "")
+ALPACA_PAPER_SECRET = os.environ.get("ALPACA_PAPER_SECRET", "")
+# --- Supabase (écriture serveur du pipeline d'historique) ------------------
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://qdhnnsipwnogecrptxfk.supabase.co")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+# Granularités stockées : label interne -> timeframe Alpaca
+CRYPTO_GRANULARITIES = {"1D": "1Day", "1H": "1Hour", "15Min": "15Min"}
+
 CRYPTO_PRIORITY = [
     "BTC/USD","ETH/USD","XRP/USD","BNB/USD","SOL/USD","TRX/USD","DOGE/USD","ADA/USD",
     "HYPE/USD","LINK/USD","AVAX/USD","SUI/USD","XLM/USD","BCH/USD","HBAR/USD","LTC/USD",

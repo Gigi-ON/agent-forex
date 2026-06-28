@@ -1,0 +1,10 @@
+[Unit]
+Description=Agent Forex — pipeline historique crypto (data, lecture seule)
+After=network.target
+
+[Service]
+Type=oneshot
+User=forex
+WorkingDirectory=/home/forex/agent-forex
+EnvironmentFile=/home/forex/agent-forex/.env
+ExecStart=/home/forex/agent-forex/venv/bin/python history_pipeline.py update

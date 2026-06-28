@@ -1,0 +1,10 @@
+[Unit]
+Description=Exécute le pipeline historique crypto toutes les 10 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
