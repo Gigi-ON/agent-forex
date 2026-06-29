@@ -123,6 +123,7 @@ class RiskManager:
         current_atr: float = 0.0,
         average_atr: float = 0.0,
         external_caution: float = 1.0,
+        whole_units: bool = True,
     ) -> SizingResult:
         """
         equity_account_ccy     : capital du compte, dans la devise du compte
@@ -181,7 +182,9 @@ class RiskManager:
         risk_amount_quote = risk_amount_account / quote_to_account_rate
 
         # 8) Taille brute en unités de la devise de base.
-        units = int(risk_amount_quote / d)
+        #    Forex : unités entières (convention OANDA). Crypto : fractionnaire.
+        raw_units = risk_amount_quote / d
+        units = int(raw_units) if whole_units else round(raw_units, 8)
         if units <= 0:
             reasons.append("Taille calculée nulle (capital trop faible vs stop).")
 
@@ -193,7 +196,8 @@ class RiskManager:
         # Si le levier dépasse le plafond, on réduit les unités pour rentrer dedans.
         if effective_leverage > HARD_LIMITS["max_effective_leverage"]:
             max_notional = equity_account_ccy * HARD_LIMITS["max_effective_leverage"]
-            units = int(max_notional / base_to_account_rate)
+            _u = max_notional / base_to_account_rate
+            units = int(_u) if whole_units else round(_u, 8)
             notional_account = units * base_to_account_rate
             effective_leverage = notional_account / equity_account_ccy
             # le risque réel baisse en conséquence

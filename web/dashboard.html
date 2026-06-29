@@ -1373,9 +1373,8 @@
     if($('tvModeSeg')) $('tvModeSeg').onclick=function(e){ const b=e.target.closest("button"); if(!b)return; TVmode=b.dataset.m; [].forEach.call(e.currentTarget.children,function(x){x.classList.remove("on");}); b.classList.add("on"); if($('tvBandWrap')) $('tvBandWrap').style.display=(TVmode==="auto")?"":"none"; };
     if($('tvLaunch')) $('tvLaunch').onclick=async function(){
       const m=$('tvMarket').value;
-      if(m==="crypto"){ $('tvMsg').innerHTML='<span class="dn">La crypto est en cours d’intégration (cours seulement). Exécution bientôt.</span>'; return; }
       const budget=parseInt($('tvBudget').value,10)||0;
-      const body={budget:budget, asset:"forex", instrument:TVsel, profile:"doux", risk_level:"doux"};
+      const body={budget:budget, asset:m, instrument:TVsel, profile:"doux", risk_level:"doux"};
       if(TVmode==="auto"){ body.accept_min=Math.max(0,Math.min(1,(parseFloat($('tvMin').value)||0)/100)); body.accept_max=Math.max(0,Math.min(1,(parseFloat($('tvMax').value)||100)/100)); }
       const h=await authHeaders();
       const r=await fetch("/api/paper/session",{method:"POST",headers:h,body:JSON.stringify(body)}).then(function(x){return x.json();}).catch(function(e){return {error:String(e)};});

@@ -84,7 +84,8 @@ class Supervisor:
             quote_to_account_rate=quote_to_account,
             base_to_account_rate=base_to_account,
             current_atr=a_cur, average_atr=a_avg,
-            external_caution=decision.caution_factor)
+            external_caution=decision.caution_factor,
+            whole_units=("/" not in pair))
         if not sized.accepted or sized.units == 0:
             return None
 

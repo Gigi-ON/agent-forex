@@ -281,6 +281,21 @@ def _rates_cached(od, pair, ttl=60):
     return r
 
 
+_usdcad_cache = [0.0, 1.36]   # (ts, valeur) — repli 1.36
+
+
+def _usd_cad(od):
+    if _time.time() - _usdcad_cache[0] < 300:
+        return _usdcad_cache[1]
+    try:
+        px = od.get_latest("USD_CAD")
+        _usdcad_cache[1] = (px["bid"] + px["ask"]) / 2.0
+        _usdcad_cache[0] = _time.time()
+    except Exception:
+        pass
+    return _usdcad_cache[1]
+
+
 def _candle_stale(candles, max_age_min=45):
     """True si la dernière bougie M15 est trop vieille (données périmées)."""
     if not candles:
@@ -315,6 +330,28 @@ def _gather_market():
                             "q2a": q2a, "b2a": b2a, "stale": _candle_stale(candles)}
         except Exception:
             continue
+    # --- crypto (Kraken) pour les sessions crypto actives (24/7) ---
+    crypto = set(getattr(ss, "instrument", None) for ss in _paper.manager.active
+                 if getattr(ss, "instrument", None) and "/" in (getattr(ss, "instrument", "") or ""))
+    if crypto:
+        from kraken_data import KrakenData
+        kd = KrakenData()
+        try:
+            quotes = kd.latest_quotes(list(crypto))
+        except Exception:
+            quotes = {}
+        usdcad = _usd_cad(od)
+        for sym in crypto:
+            try:
+                candles = kd.get_history(sym, interval=15)
+                q = quotes.get(sym)
+                price = q["mid"] if (q and q.get("mid") is not None) else (candles[-1]["c"] if candles else None)
+                if price is None or not candles:
+                    continue
+                market[sym] = {"candles": candles, "price": price, "news": [],
+                               "q2a": usdcad, "b2a": price * usdcad, "stale": False}
+            except Exception:
+                continue
     return market
 
 
@@ -491,15 +528,16 @@ def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
     try:
         budget = float(body.get("budget", 0))
         asset = body.get("asset", "forex")
-        if asset == "crypto":
-            return {"error": "Exécution crypto bientôt — pour l'instant, cours seulement (Kraken)."}
         instrument = body.get("instrument")
-        oanda_inst = instrument.replace("/", "_") if instrument else None
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
-        if not _paper._forex_open(now):
-            return {"error": "Le marché forex est fermé.",
-                    "next_open": _forex_next_open(now).isoformat()}
+        if asset == "forex":
+            inst = instrument.replace("/", "_") if instrument else None
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            if not _paper._forex_open(now):
+                return {"error": "Le marché forex est fermé.",
+                        "next_open": _forex_next_open(now).isoformat()}
+        else:
+            inst = instrument   # crypto : symbole d'affichage avec '/', marché 24/7
         with _paper_lock:
             s = _paper.open_session(
                 budget=budget,
@@ -507,9 +545,9 @@ def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
                 profile=Profile(body.get("profile", "reserve")),
                 risk_level=body.get("risk_level", "reserve"),
                 duration_min=int(body.get("duration_min", 240)),
-                instrument=oanda_inst)
+                instrument=inst)
             _save_paper()
-        return {"ok": True, "session_id": s.id, "instrument": oanda_inst}
+        return {"ok": True, "session_id": s.id, "instrument": inst}
     except Exception as e:
         return {"error": str(e)}
 
