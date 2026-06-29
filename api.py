@@ -570,6 +570,16 @@ def market_status():
     }
 
 
+@app.get("/api/sessions-clock")
+def sessions_clock_ep():
+    """Horloge des sessions forex + meilleures paires « maintenant » (déterministe)."""
+    try:
+        import sessions_clock
+        return sessions_clock.snapshot()
+    except Exception as e:
+        return {"error": str(e), "verdict": "—", "sessions": [], "top_pairs": []}
+
+
 @app.get("/api/price")
 def price(asset: str = "forex", instrument: str = ""):
     """Dernier cours d'un instrument (forex via OANDA, crypto via Kraken)."""
