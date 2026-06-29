@@ -364,7 +364,7 @@ def _tick_loop():
                 _save_paper()
         except Exception:
             pass
-        _time.sleep(15)
+        _time.sleep(10)
 
 
 @app.on_event("startup")

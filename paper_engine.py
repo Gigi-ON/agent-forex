@@ -77,6 +77,7 @@ class PaperEngine:
         self.activity = []           # journal d'activité (audit)
         self.last_tick = None        # battement de cœur (ISO)
         self._halt_logged = False
+        self.last_price = {}         # pair -> dernier prix (pour le P&L latent)
         # Le superviseur ne journalise PAS à l'ouverture (journal=None) ;
         # son alert_sink=self alimente le journal d'activité.
         self.supervisor = Supervisor(self.manager, journal_store=None,
@@ -165,6 +166,9 @@ class PaperEngine:
         self.supervisor.sweep(now)
         self.manager.sweep_expired(now)
         self._update_positions(market, now)
+        for _pair, _m in (market or {}).items():
+            if _m.get("price") is not None:
+                self.last_price[_pair] = float(_m["price"])
 
         if self.running and not self.daily_halted:
             for session in list(self.manager.active):
@@ -329,6 +333,12 @@ class PaperEngine:
         self._log("trade", "%s %s · %+.2f$" % (pos.pair, reason, pnl))
         self.positions.pop(pos.id, None)
 
+    def _pos_unreal(self, pos):
+        price = self.last_price.get(pos.pair)
+        if price is None:
+            return 0.0
+        return round(pos.initial_risk * pos.realized_R(price), 2)
+
     # -- vue pour l'API ------------------------------------------------------
     def snapshot(self, now=None):
         now = now or _now()
@@ -344,6 +354,7 @@ class PaperEngine:
             "sessions": [{
                 "id": s.id, "allocated": s.allocated, "equity": s.equity,
                 "realized_pnl": s.realized_pnl, "trades": s.trades,
+                "live_pnl": round(s.realized_pnl + sum(self._pos_unreal(p) for p in self.positions.values() if p.session_id == s.id), 2),
                 "tutelle": s.tutelle.value if hasattr(s.tutelle, "value") else s.tutelle,
                 "risk_level": s.risk_level,
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
@@ -364,6 +375,7 @@ class PaperEngine:
                 "id": pos.id, "session_id": pos.session_id, "pair": pos.pair,
                 "side": pos.side, "entry": pos.entry_price, "stop": pos.stop_loss,
                 "take_profit": pos.take_profit, "confidence": pos.confidence,
+                "price": self.last_price.get(pos.pair), "unreal": self._pos_unreal(pos),
             } for pos in self.positions.values()],
         }
 

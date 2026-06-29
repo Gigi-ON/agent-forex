@@ -1234,7 +1234,9 @@
     const ss=PAPER.sessions||[];
     if(em) em.style.display=ss.length?'none':'';
     el.innerHTML=ss.map(function(s){
-      const pnl=s.realized_pnl||0;
+      const real=s.realized_pnl||0;
+      const pnl=(s.live_pnl!=null?s.live_pnl:real);   // évolue avec la position ouverte
+      const latent=pnl-real;
       const cls=pnl>0?'up':(pnl<0?'down':'');
       const band=(s.accept_min!=null&&s.accept_max!=null)?('auto '+Math.round(s.accept_min*100)+'–'+Math.round(s.accept_max*100)+'%'):'manuel';
       const instD=s.instrument?s.instrument.replace('_','/'):'—';
@@ -1243,7 +1245,7 @@
       const ctrls=closed?'':('<div style="display:flex;gap:8px">'+'<button class="btn" data-sact="'+(s.paused?'resume':'pause')+'" data-id="'+s.id+'">'+(s.paused?'▶ Reprendre':'⏸ Pause')+'</button>'+'<button class="btn" data-sact="stop" data-id="'+s.id+'">⏹ Stop</button></div>');
       return '<div class="msg" style="flex-direction:column;align-items:stretch;gap:6px'+(closed?';opacity:.55':(s.paused?';opacity:.7':''))+'">'
         +'<div style="display:flex;align-items:center;gap:8px"><b>Session #'+s.id+'</b>'+badge+'<span class="cap">'+instD+'</span><span class="'+cls+'" style="margin-left:auto;font-weight:800;font-size:14px">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>'
-        +'<div class="cap">budget '+money(s.allocated)+' · '+band+'</div>'
+        +'<div class="cap">budget '+money(s.allocated)+' · '+band+(Math.abs(latent)>0.009?(' · latent '+(latent>=0?'+':'')+latent.toFixed(2)+' $'):'')+'</div>'
         +'<div class="cap" style="opacity:.85">👁 '+(s.last_look?(s.last_look.note||'surveille'):'en attente de données')+'</div>'
         +ctrls+'</div>';
     }).join('');
@@ -1322,7 +1324,7 @@
   }
   if($('botMarket')) $('botMarket').onchange=botPopulatePairs;
   botPopulatePairs();
-  refreshPaper(); setInterval(refreshPaper, 8000);
+  refreshPaper(); setInterval(refreshPaper, 4000);
 
   /* ============ VUE TRADING (watchlist + flash + statut marché + ticket) ============ */
   let TVprev={}, TVsel=null, TVside="buy", TVmkt=null;
