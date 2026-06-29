@@ -120,13 +120,15 @@ class PaperEngine:
     # -- sessions -----------------------------------------------------------
     def open_session(self, budget, accept_min=None, accept_max=None,
                      profile=Profile.RESERVE, risk_level="reserve",
-                     duration_min=240, tutelle=Tutelle.MANUEL, instrument=None):
+                     duration_min=240, tutelle=Tutelle.MANUEL, instrument=None,
+                     mode="pratique"):
         s = self.manager.open_session(allocated=budget, profile=profile,
                                       tutelle=tutelle, duration_min=duration_min,
                                       risk_level=risk_level)
         s.accept_min = accept_min
         s.accept_max = accept_max
         s.instrument = instrument
+        s.mode = mode
         self._log("session", "Session ouverte #%s · %d$%s" % (s.id, int(budget), (" · " + instrument) if instrument else ""))
         return s
 
@@ -521,6 +523,7 @@ class PaperEngine:
                 "risk_level": s.risk_level,
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
                 "instrument": getattr(s, "instrument", None),
+                "mode": getattr(s, "mode", "pratique"),
                 "paused": getattr(s, "paused", False),
                 "last_look": self.supervisor.last_look.get(s.id),
                 "state": s.state.value if hasattr(s.state, "value") else s.state,
@@ -567,6 +570,7 @@ class PaperEngine:
                 "realized_pnl": s.realized_pnl, "trades": s.trades,
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
                 "instrument": s.instrument, "paused": getattr(s, "paused", False),
+                "mode": getattr(s, "mode", "pratique"),
             } for s in self.manager.sessions.values()],
             "positions": [dict(vars(pos)) for pos in self.positions.values()],
             "running": self.running,
@@ -599,6 +603,7 @@ class PaperEngine:
             s.accept_min = sd.get("accept_min")
             s.accept_max = sd.get("accept_max")
             s.instrument = sd.get("instrument")
+            s.mode = sd.get("mode", "pratique")
             s.paused = sd.get("paused", False)
             self.manager.sessions[s.id] = s
         self.positions = {}

@@ -344,6 +344,30 @@
   .badge.v-calme{background:var(--amber-soft);color:var(--amber)}
   .badge.v-ferme{background:var(--coral-soft);color:var(--coral)}
   .tvopt-hot{font-weight:700}
+  /* Cartes de session (Lots A+B) */
+  .sess-card{background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden;margin-bottom:10px}
+  .sess-card.is-stop{opacity:.6} .sess-card.is-pause{opacity:.82}
+  .sband{height:4px;position:relative;overflow:hidden}
+  .sband.st-run{background:var(--green)}
+  .sband.st-run .scan{position:absolute;top:0;height:100%;width:28%;border-radius:2px;background:rgba(255,255,255,.92);animation:sscan 1.9s ease-in-out infinite}
+  @keyframes sscan{0%{left:-28%}100%{left:100%}}
+  .sband.st-pause{background:#E8B84B}     /* jaune d'œuf */
+  .sband.st-stop{background:#E0A0A0}      /* rouge pâle */
+  @media (prefers-reduced-motion: reduce){.sband.st-run .scan{animation:none;left:0;width:100%;opacity:.5}}
+  .sess-body{padding:11px 14px;display:flex;flex-direction:column;gap:5px}
+  .sl1{font-size:13.5px} .sl1 b{font-weight:700}
+  .sl2{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .sl2 .sep{opacity:.45}
+  .spill{font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600;background:var(--bg);border:1px solid var(--line)}
+  .spill.run{color:var(--green)} .spill.pause{color:var(--amber)} .spill.stop{color:var(--coral)}
+  .mchip{font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600}
+  .mchip.m-prat{background:var(--amber-soft);color:var(--amber)}
+  .mchip.m-appr{background:var(--blue-soft);color:var(--blue)}
+  .mchip.m-reel{background:var(--coral-soft);color:var(--coral)}
+  .spnl{margin-left:auto;font-weight:800;font-size:13.5px}
+  .spnl.up{color:var(--green)} .spnl.down{color:var(--coral)}
+  .sl3{font-size:12px;color:var(--muted)} .sl3 b{color:var(--ink);font-weight:700}
+  .sl4{font-size:11.5px;color:var(--muted);opacity:.9}
   @keyframes tvFlashUp{0%{background:var(--green-soft)}100%{background:transparent}}
   @keyframes tvFlashDn{0%{background:var(--coral-soft)}100%{background:transparent}}
   .tv-up{animation:tvFlashUp .5s ease-out}
@@ -1261,6 +1285,7 @@
     const el=$('sessions'), em=$('sessEmpty'); if(!el)return;
     const ss=PAPER.sessions||[];
     if(em) em.style.display=ss.length?'none':'';
+    const MODES={pratique:['Pratique','m-prat'],apprentissage:['Apprentissage','m-appr'],reel:['Réel','m-reel']};
     el.innerHTML=ss.map(function(s){
       const real=s.realized_pnl||0;
       const pnl=(s.live_pnl!=null?s.live_pnl:real);   // évolue avec la position ouverte
@@ -1268,14 +1293,22 @@
       const cls=pnl>0?'up':(pnl<0?'down':'');
       const band=(s.accept_min!=null&&s.accept_max!=null)?('auto '+Math.round(s.accept_min*100)+'–'+Math.round(s.accept_max*100)+'%'):'manuel';
       const instD=s.instrument?s.instrument.replace('_','/'):'—';
-      const closed=(s.state==='closed');
-      const badge=closed?'<span class="sbadge sb-done">Terminé</span>':(s.paused?'<span class="sbadge sb-pause">Paused</span>':'<span class="sbadge sb-run">Running</span>');
-      const ctrls=closed?'':('<div style="display:flex;gap:8px">'+'<button class="btn" data-sact="'+(s.paused?'resume':'pause')+'" data-id="'+s.id+'">'+(s.paused?'▶ Reprendre':'⏸ Pause')+'</button>'+'<button class="btn" data-sact="stop" data-id="'+s.id+'">⏹ Stop</button></div>');
-      return '<div class="msg" style="flex-direction:column;align-items:stretch;gap:6px'+(closed?';opacity:.55':(s.paused?';opacity:.7':''))+'">'
-        +'<div style="display:flex;align-items:center;gap:8px"><b>Session #'+s.id+'</b>'+badge+'<span class="cap">'+instD+'</span><span class="'+cls+'" style="margin-left:auto;font-weight:800;font-size:14px">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>'
-        +'<div class="cap">budget '+money(s.allocated)+' · '+band+(Math.abs(latent)>0.009?(' · latent '+(latent>=0?'+':'')+latent.toFixed(2)+' $'):'')+'</div>'
-        +'<div class="cap" style="opacity:.85">👁 '+(s.last_look?(s.last_look.note||'surveille'):'en attente de données')+'</div>'
-        +ctrls+'</div>';
+      const closed=(s.state==='closed'), paused=!!s.paused;
+      const stLabel=closed?'Terminé':(paused?'En pause':'En cours');
+      const stCls=closed?'stop':(paused?'pause':'run');
+      const bandCls=closed?'st-stop':(paused?'st-pause':'st-run');
+      const md=MODES[s.mode||'pratique']||MODES.pratique;
+      const nt=s.trades||0;
+      const ctrls=closed?'':('<div style="display:flex;gap:8px;margin-top:2px">'+'<button class="btn" data-sact="'+(paused?'resume':'pause')+'" data-id="'+s.id+'">'+(paused?'▶ Reprendre':'⏸ Pause')+'</button>'+'<button class="btn" data-sact="stop" data-id="'+s.id+'">⏹ Stop</button></div>');
+      return '<div class="sess-card'+(closed?' is-stop':(paused?' is-pause':''))+'">'
+        +'<div class="sband '+bandCls+'">'+(!closed&&!paused?'<span class="scan"></span>':'')+'</div>'
+        +'<div class="sess-body">'
+        +'<div class="sl1"><b>Session #'+s.id+'</b> · '+instD+' · Budget '+money(s.allocated)+'</div>'
+        +'<div class="sl2">'+band+'<span class="sep">|</span><span class="spill '+stCls+'">'+stLabel+'</span><span class="sep">|</span><span class="mchip '+md[1]+'">'+md[0]+'</span>'
+          +'<span class="spnl '+cls+'">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>'
+        +'<div class="sl3"><b>'+nt+'</b> trade'+(nt>1?'s':'')+(Math.abs(latent)>0.009?(' · latent '+(latent>=0?'+':'')+latent.toFixed(2)+' $'):'')+'</div>'
+        +'<div class="sl4">👁 '+(s.last_look?(s.last_look.note||'surveille'):'en attente de données')+'</div>'
+        +ctrls+'</div></div>';
     }).join('');
   };
   (function(){ const sc=$('sessions'); if(!sc)return; sc.addEventListener('click', async function(e){
@@ -1460,7 +1493,7 @@
     if($('tvLaunch')) $('tvLaunch').onclick=async function(){
       const m=$('tvMarket').value;
       const budget=parseInt($('tvBudget').value,10)||0;
-      const body={budget:budget, asset:m, instrument:TVsel, profile:"doux", risk_level:"doux"};
+      const body={budget:budget, asset:m, instrument:TVsel, profile:"doux", risk_level:"doux", mode:(state.appMode||"pratique")};
       if(TVmode==="auto"){ body.accept_min=Math.max(0,Math.min(1,(parseFloat($('tvMin').value)||0)/100)); body.accept_max=Math.max(0,Math.min(1,(parseFloat($('tvMax').value)||100)/100)); }
       const h=await authHeaders();
       const r=await fetch("/api/paper/session",{method:"POST",headers:h,body:JSON.stringify(body)}).then(function(x){return x.json();}).catch(function(e){return {error:String(e)};});

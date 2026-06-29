@@ -711,7 +711,8 @@ def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
                 profile=Profile(body.get("profile", "reserve")),
                 risk_level=body.get("risk_level", "reserve"),
                 duration_min=int(body.get("duration_min", 240)),
-                instrument=inst)
+                instrument=inst,
+                mode=body.get("mode", "pratique"))
             _save_paper()
         return {"ok": True, "session_id": s.id, "instrument": inst}
     except Exception as e:
