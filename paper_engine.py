@@ -249,6 +249,19 @@ class PaperEngine:
             return False
         return True
 
+    def on_external_price(self, pair, price, now=None):
+        """Applique un prix reçu d'un flux natif (OANDA/Kraken) : maj du dernier
+        prix + clôture éventuelle SL/TP de la position de cette paire.
+        Renvoie True si une position a été clôturée (état durable à sauvegarder)."""
+        now = now or _now()
+        try:
+            self.last_price[pair] = float(price)
+        except Exception:
+            return False
+        before = len(self.positions)
+        self._update_positions({pair: {"price": self.last_price[pair]}}, now)
+        return before != len(self.positions)
+
     def price_tick(self, prices, now=None):
         """Mise à jour RAPIDE des prix (sans signaux) : P&L latent + clôtures SL/TP.
         Appelée toutes les ~2 s pour la réactivité ; les signaux restent au tick lent."""

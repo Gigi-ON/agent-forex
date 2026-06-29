@@ -413,13 +413,83 @@ def _price_loop():
                     _save_paper()
         except Exception:
             pass
-        _time.sleep(2)
+        _time.sleep(5)
+
+
+# -- flux de prix natifs (temps réel tick-par-tick) -------------------------
+def _active_forex():
+    """Instruments forex des sessions actives + positions ouvertes."""
+    out = set()
+    try:
+        for ss in _paper.manager.active:
+            i = getattr(ss, "instrument", None)
+            if i and "_" in i:
+                out.add(i)
+        for pos in _paper.positions.values():
+            if "_" in pos.pair:
+                out.add(pos.pair)
+    except Exception:
+        pass
+    return sorted(out)
+
+
+def _active_crypto():
+    """Symboles crypto des sessions actives + positions ouvertes."""
+    out = set()
+    try:
+        for ss in _paper.manager.active:
+            i = getattr(ss, "instrument", None)
+            if i and "/" in i:
+                out.add(i)
+        for pos in _paper.positions.values():
+            if "/" in pos.pair:
+                out.add(pos.pair)
+    except Exception:
+        pass
+    return sorted(out)
+
+
+def _oanda_creds():
+    acc = config.ACCOUNTS.get("practice", {})
+    return (acc.get("token") or config.OANDA_TOKEN,
+            acc.get("account_id") or config.OANDA_ACCOUNT_ID,
+            acc.get("env") or config.ENVIRONMENT)
+
+
+def _on_native_price(pair, price):
+    """Tick reçu d'un flux natif : maj prix + clôture SL/TP + push SSE."""
+    try:
+        with _paper_lock:
+            closed = _paper.on_external_price(pair, price)
+            if closed:
+                _save_paper()          # incrémente déjà _state_version
+        if not closed:
+            _state_version[0] += 1     # push SSE (throttlé à 0,6 s côté flux)
+    except Exception:
+        pass
+
+
+def _start_streams():
+    try:
+        import streams
+    except Exception as e:
+        print("streams indisponible:", e, flush=True)
+        return
+    _threading.Thread(
+        target=streams.oanda_price_stream,
+        args=(_active_forex, _oanda_creds, _on_native_price),
+        daemon=True).start()
+    _threading.Thread(
+        target=streams.kraken_price_stream,
+        args=(_active_crypto, _on_native_price),
+        daemon=True).start()
 
 
 @app.on_event("startup")
 def _start_paper():
     _threading.Thread(target=_tick_loop, daemon=True).start()
-    _threading.Thread(target=_price_loop, daemon=True).start()
+    _threading.Thread(target=_price_loop, daemon=True).start()  # repli lent (filet)
+    _start_streams()
 
 
 # -- auth : exige une session Supabase valide pour les écritures ------------

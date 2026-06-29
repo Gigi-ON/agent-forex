@@ -9,3 +9,5 @@ fastapi>=0.110          # API GET lecture seule (status/account/signals)
 uvicorn[standard]>=0.29 # serveur ASGI lancé par le service systemd
 # Pipeline d historique crypto :
 pyarrow>=14.0          # ecriture Parquet (magasin profond)
+# Flux de prix natifs temps réel :
+websocket-client>=1.6   # WebSocket Kraken v2 (crypto, tick-par-tick)
