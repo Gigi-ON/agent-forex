@@ -26,6 +26,12 @@ DATA_DIR = Path(__file__).parent / "data" / "history"
 ALPACA_BARS = "https://data.alpaca.markets/v1beta3/crypto/us/bars"
 GRANS = config.CRYPTO_GRANULARITIES                 # {"1D":"1Day", ...}
 DEEP_START = "2018-01-01T00:00:00Z"
+# Profondeur de backfill par granularité (limite le volume et le temps).
+DEEP_START_BY_GRAN = {"1D": "2018-01-01T00:00:00Z",
+                      "1H": "2021-01-01T00:00:00Z",
+                      "15Min": "2024-01-01T00:00:00Z"}
+REQUEST_DELAY = 0.4          # throttle (~150 req/min, sous la limite Alpaca gratuite)
+MAX_RETRIES = 6              # tentatives sur 429
 # Fenêtre récente poussée vers Supabase pour les granularités fines (limite la taille)
 SUPABASE_WINDOW = {"1D": 100000, "1H": 2000, "15Min": 2000}
 # Fenêtre par défaut en mode update si aucun historique local
@@ -50,19 +56,30 @@ def verify_alpaca():
 
 
 def fetch_bars(symbol, timeframe, start, limit=10000):
-    """Bougies Alpaca, paginées, triées ascendant."""
+    """Bougies Alpaca, paginées, triées ascendant. Throttle + retry sur 429."""
     import requests
+    import time as _t
     out, page = [], None
     while True:
         params = {"symbols": symbol, "timeframe": timeframe, "start": start,
                   "limit": limit, "sort": "asc"}
         if page:
             params["page_token"] = page
-        r = requests.get(ALPACA_BARS, params=params, headers=_headers(), timeout=25)
+        r = None
+        for attempt in range(MAX_RETRIES):
+            r = requests.get(ALPACA_BARS, params=params, headers=_headers(), timeout=25)
+            if r.status_code == 429:
+                wait = float(r.headers.get("Retry-After", 0) or 0) or min(2 ** attempt, 30)
+                _t.sleep(wait)
+                continue
+            break
+        if r is None or r.status_code == 429:
+            raise RuntimeError("429 répété (limite Alpaca)")
         r.raise_for_status()
         j = r.json()
         out.extend((j.get("bars", {}) or {}).get(symbol, []) or [])
         page = j.get("next_page_token")
+        _t.sleep(REQUEST_DELAY)
         if not page:
             break
     return out
@@ -157,7 +174,7 @@ def _start_for(symbol, gran, mode):
     if lt:
         return lt
     if mode == "backfill":
-        return DEEP_START
+        return DEEP_START_BY_GRAN.get(gran, DEEP_START)
     days = UPDATE_LOOKBACK.get(gran, 2)
     return (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
