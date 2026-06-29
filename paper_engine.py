@@ -172,6 +172,13 @@ class PaperEngine:
                     break
                 if getattr(session, "paused", False):
                     continue
+                # une session = au plus UNE position ouverte (ou une proposition
+                # en attente) à la fois -> pas d'empilement sur un signal persistant
+                if any(pos.session_id == session.id for pos in self.positions.values()):
+                    continue
+                if any(pp.session_id == session.id and pp.status == "pending"
+                       for pp in self.supervisor.pending.values()):
+                    continue
                 pairs = [session.instrument] if getattr(session, "instrument", None) else list(market.keys())
                 for pair in pairs:
                     if not self._can_open_more():
