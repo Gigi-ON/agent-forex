@@ -30,8 +30,8 @@ app = FastAPI(title="Agent Forex API", version="1.0")
 _origin = os.environ.get("FRONTEND_ORIGIN", "")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[_origin] if _origin else [],
-    allow_methods=["GET"],
+    allow_origins=["*"],          # API tokenisée (header Authorization), pas de cookies
+    allow_methods=["*"],          # GET + POST (sessions, pause/stop, décisions)
     allow_headers=["*"],
 )
 

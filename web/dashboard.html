@@ -865,6 +865,16 @@
       <div style="text-align:center;margin-top:12px"><a id="realCancel" class="cap" style="cursor:pointer;color:var(--blue)">Annuler</a></div>
     </div>
   </div>
+    <div class="modal hidden" id="confirmModal">
+    <div class="mbox">
+      <h3 style="margin-bottom:8px">Confirmation</h3>
+      <div class="cap" id="confirmMsg" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn" id="confirmNo">Annuler</button>
+        <button class="btn primary" id="confirmYes">Confirmer</button>
+      </div>
+    </div>
+  </div>
   <div class="scrim" id="scrim"></div>
   <div class="toasts" id="toasts"></div>
 </div>
@@ -1241,7 +1251,7 @@
   (function(){ const sc=$('sessions'); if(!sc)return; sc.addEventListener('click', async function(e){
     const b=e.target.closest('button[data-sact]'); if(!b)return;
     const act=b.dataset.sact, id=b.dataset.id;
-    if(act==='stop'){ const np=(PAPER.positions||[]).filter(function(p){return p.session_id===id;}).length; if(!confirm('Stopper la session #'+id+' ? '+np+' position(s) seront fermées au prix courant.')) return; }
+    if(act==='stop'){ const np=(PAPER.positions||[]).filter(function(p){return p.session_id===id;}).length; if(!(await confirmModal('Stopper la session #'+id+' ? '+np+' position(s) seront fermées au prix courant.','Stopper'))) return; }
     const url=act==='stop'?'/api/paper/session/stop':(act==='resume'?'/api/paper/session/resume':'/api/paper/session/pause');
     const h=await authHeaders();
     const r=await fetch(url,{method:'POST',headers:h,body:JSON.stringify({session_id:id})}).then(function(x){return x.json();}).catch(function(){return {error:'endpoint indisponible'};});
@@ -1542,6 +1552,16 @@
     };
     const c=_rm('realCancel'); if(c) c.onclick=function(){ showRealModal(false); };
   })();
+
+  function confirmModal(msg, okLabel){
+    return new Promise(function(resolve){
+      const md=$('confirmModal'); if(!md){ resolve(window.confirm(msg)); return; }
+      $('confirmMsg').textContent=msg; if(okLabel)$('confirmYes').textContent=okLabel;
+      md.classList.remove('hidden');
+      $('confirmYes').onclick=function(){ md.classList.add('hidden'); resolve(true); };
+      $('confirmNo').onclick=function(){ md.classList.add('hidden'); resolve(false); };
+    });
+  }
 
 </script>
 </body>
