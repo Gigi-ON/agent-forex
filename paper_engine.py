@@ -249,6 +249,17 @@ class PaperEngine:
             return False
         return True
 
+    def price_tick(self, prices, now=None):
+        """Mise à jour RAPIDE des prix (sans signaux) : P&L latent + clôtures SL/TP.
+        Appelée toutes les ~2 s pour la réactivité ; les signaux restent au tick lent."""
+        now = now or _now()
+        for pair, price in (prices or {}).items():
+            if price is not None:
+                self.last_price[pair] = float(price)
+        market = {pair: {"price": px} for pair, px in self.last_price.items()}
+        self._update_positions(market, now)
+        return self.snapshot(now)
+
     def pause(self):
         self.running = False
         self._log("système", "Pause du moteur")

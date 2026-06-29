@@ -259,6 +259,9 @@ except Exception:
     pass
 
 
+_state_version = [0]   # incrémenté à chaque changement d'état (pour le flux SSE)
+
+
 def _save_paper():
     try:
         _PAPER_STATE.parent.mkdir(parents=True, exist_ok=True)
@@ -267,6 +270,7 @@ def _save_paper():
         os.replace(str(tmp), str(_PAPER_STATE))   # écriture atomique
     except Exception:
         pass
+    _state_version[0] += 1
 
 
 _rate_cache = {}   # pair -> (ts, (q2a, b2a))
@@ -367,10 +371,55 @@ def _tick_loop():
         _time.sleep(10)
 
 
+def _gather_prices():
+    """Derniers prix (léger) des instruments des sessions/positions actives."""
+    od = _data()
+    insts = set()
+    try:
+        for ss in _paper.manager.active:
+            ins = getattr(ss, "instrument", None)
+            if ins:
+                insts.add(ins)
+        for pos in _paper.positions.values():
+            insts.add(pos.pair)
+    except Exception:
+        pass
+    prices = {}
+    for pair in [i for i in insts if i and "_" in i]:
+        try:
+            px = od.get_latest(pair)
+            prices[pair] = (px["bid"] + px["ask"]) / 2.0
+        except Exception:
+            pass
+    cr = [i for i in insts if i and "/" in i]
+    if cr:
+        try:
+            from kraken_data import KrakenData
+            for sym, d in KrakenData().latest_quotes(cr).items():
+                if d.get("mid") is not None:
+                    prices[sym] = d["mid"]
+        except Exception:
+            pass
+    return prices
+
+
+def _price_loop():
+    while True:
+        try:
+            pr = _gather_prices()
+            if pr:
+                with _paper_lock:
+                    _paper.price_tick(pr)
+                    _save_paper()
+        except Exception:
+            pass
+        _time.sleep(2)
+
+
 @app.on_event("startup")
 def _start_paper():
-    t = _threading.Thread(target=_tick_loop, daemon=True)
-    t.start()
+    _threading.Thread(target=_tick_loop, daemon=True).start()
+    _threading.Thread(target=_price_loop, daemon=True).start()
 
 
 # -- auth : exige une session Supabase valide pour les écritures ------------
@@ -513,6 +562,35 @@ def activity():
     with _paper_lock:
         return _clean({"activity": list(reversed(_paper.activity[-100:])),
                        "last_tick": _paper.last_tick, "running": _paper.running})
+
+
+from fastapi.responses import StreamingResponse
+
+
+@app.get("/api/stream")
+async def stream():
+    """Flux temps réel (SSE) : pousse le snapshot paper dès qu'il change."""
+    import asyncio
+
+    async def gen():
+        last, idle = -1, 0
+        while True:
+            v = _state_version[0]
+            if v != last:
+                last, idle = v, 0
+                try:
+                    with _paper_lock:
+                        snap = _clean(_paper.snapshot())
+                    yield "data: " + _json.dumps(snap) + "\n\n"
+                except Exception:
+                    pass
+            else:
+                idle += 1
+                if idle % 20 == 0:
+                    yield ": ping\n\n"
+            await asyncio.sleep(0.6)
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @app.get("/api/paper")

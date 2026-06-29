@@ -1324,7 +1324,14 @@
   }
   if($('botMarket')) $('botMarket').onchange=botPopulatePairs;
   botPopulatePairs();
-  refreshPaper(); setInterval(refreshPaper, 4000);
+  function startStream(){
+    if(typeof EventSource==='undefined') return;
+    try{
+      const es=new EventSource('/api/stream');
+      es.onmessage=function(ev){ if(!ev.data)return; try{ const d=JSON.parse(ev.data); if(d&&d.sessions!==undefined){ PAPER=d; renderSessions(); renderApprovals(); renderSys(); } }catch(e){} };
+    }catch(e){}
+  }
+  refreshPaper(); setInterval(refreshPaper, 6000); startStream();
 
   /* ============ VUE TRADING (watchlist + flash + statut marché + ticket) ============ */
   let TVprev={}, TVsel=null, TVside="buy", TVmkt=null;
