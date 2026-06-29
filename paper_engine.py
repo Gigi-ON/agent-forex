@@ -129,7 +129,7 @@ class PaperEngine:
             if pos.session_id == session_id:
                 m = (market or {}).get(pos.pair)
                 price = float(m["price"]) if (m and m.get("price") is not None) else pos.entry_price
-                self._close(pos, price, "STOP", now)
+                self._close(pos, price, "MANUAL", now)
         self.close_session(session_id, reason="arrêt manuel")
         return self.snapshot(now)
 
