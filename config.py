@@ -54,7 +54,7 @@ HARD_LIMITS = {
     # Levier effectif maximum toléré sur une position.
     "max_effective_leverage": 10.0,
     # Nombre maximum de positions ouvertes simultanément.
-    "max_open_positions": 3,
+    "max_open_positions": 9,
     # Ratio minimum gain potentiel / perte potentielle pour accepter un trade.
     "min_reward_risk_ratio": 1.5,
 }

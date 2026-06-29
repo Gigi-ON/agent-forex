@@ -1228,6 +1228,7 @@
       return '<div class="msg" style="flex-direction:column;align-items:stretch;gap:6px'+(paused?';opacity:.6':'')+'">'
         +'<div style="display:flex;align-items:center;gap:8px"><b>Session #'+s.id+'</b><span class="cap">'+instD+'</span><span class="'+cls+'" style="margin-left:auto;font-weight:700">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>'
         +'<div class="cap">'+money(s.allocated)+' · '+band+(paused?' · en pause':' · active')+'</div>'
+        +'<div class="cap" style="opacity:.85">👁 '+(s.last_look?(s.last_look.note||'surveille'):'en attente de données')+'</div>'
         +'<div style="display:flex;gap:8px">'
         +'<button class="btn" data-sact="'+(paused?'resume':'pause')+'" data-id="'+s.id+'">'+(paused?'▶ Reprendre':'⏸ Pause')+'</button>'
         +'<button class="btn" data-sact="stop" data-id="'+s.id+'">⏹ Stop</button></div></div>';

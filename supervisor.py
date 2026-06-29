@@ -63,6 +63,7 @@ class Supervisor:
         self.engine = engine or SignalEngine()
         self.modulator = modulator or RiskModulator()
         self.pending = {}            # id -> Pending
+        self.last_look = {}          # session_id -> dernière lecture du moteur (visibilité)
 
     # -- proposer ------------------------------------------------------------
     def propose(self, session, pair, candles, news_items,
@@ -70,6 +71,12 @@ class Supervisor:
         now = now or datetime.now(timezone.utc)
 
         sig = self.engine.evaluate(pair, candles)
+        self.last_look[session.id] = {
+            "pair": pair,
+            "note": (sig.notes[-1] if sig.notes else ""),
+            "has_signal": bool(sig.proposal),
+            "conf": round(sig.confidence, 2),
+        }
         if not sig.proposal:
             return None
         decision = self.modulator.assess(news_items, pair, now)

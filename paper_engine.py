@@ -349,6 +349,7 @@ class PaperEngine:
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
                 "instrument": getattr(s, "instrument", None),
                 "paused": getattr(s, "paused", False),
+                "last_look": self.supervisor.last_look.get(s.id),
                 "state": s.state.value if hasattr(s.state, "value") else s.state,
             } for s in self.manager.sessions.values()],
             "pending": [{
