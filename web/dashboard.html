@@ -362,6 +362,10 @@
   .toast{background:#36454F;border:1px solid rgba(255,255,255,.08);border-left:3px solid rgba(255,255,255,.45);color:#fff}
   .toast .tt{color:#fff}.toast .tb{color:#B6C0C8}
   .toast.red{border-left-color:#F06A6A}.toast.amber{border-left-color:#E8B14A}.toast.green{border-left-color:#34C796}
+  .sbadge{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px}
+  .sb-run{background:rgba(52,199,150,.22);color:#9FF0D2}
+  .sb-pause{background:rgba(232,177,74,.22);color:#F2D49A}
+  .sb-done{background:rgba(255,255,255,.14);color:#CFD6DB}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -1217,21 +1221,21 @@
   resolveTrade=function(){}; updateLearning=function(){};
   renderSessions=function(){
     const el=$('sessions'), em=$('sessEmpty'); if(!el)return;
-    const ss=(PAPER.sessions||[]).filter(function(s){return s.state!=='closed';});
+    const ss=PAPER.sessions||[];
     if(em) em.style.display=ss.length?'none':'';
     el.innerHTML=ss.map(function(s){
-      const pnl=s.realized_pnl||0, cls=pnl>0?'up':(pnl<0?'down':'');
+      const pnl=s.realized_pnl||0;
+      const cls=pnl>0?'up':(pnl<0?'down':'');
       const band=(s.accept_min!=null&&s.accept_max!=null)?('auto '+Math.round(s.accept_min*100)+'–'+Math.round(s.accept_max*100)+'%'):'manuel';
-      const inst=s.instrument?(' · '+s.instrument.replace('_','/')):'';
-      const paused=s.paused;
       const instD=s.instrument?s.instrument.replace('_','/'):'—';
-      return '<div class="msg" style="flex-direction:column;align-items:stretch;gap:6px'+(paused?';opacity:.6':'')+'">'
-        +'<div style="display:flex;align-items:center;gap:8px"><b>Session #'+s.id+'</b><span class="cap">'+instD+'</span><span class="'+cls+'" style="margin-left:auto;font-weight:700">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>'
-        +'<div class="cap">'+money(s.allocated)+' · '+band+(paused?' · en pause':' · active')+'</div>'
+      const closed=(s.state==='closed');
+      const badge=closed?'<span class="sbadge sb-done">Terminé</span>':(s.paused?'<span class="sbadge sb-pause">Paused</span>':'<span class="sbadge sb-run">Running</span>');
+      const ctrls=closed?'':('<div style="display:flex;gap:8px">'+'<button class="btn" data-sact="'+(s.paused?'resume':'pause')+'" data-id="'+s.id+'">'+(s.paused?'▶ Reprendre':'⏸ Pause')+'</button>'+'<button class="btn" data-sact="stop" data-id="'+s.id+'">⏹ Stop</button></div>');
+      return '<div class="msg" style="flex-direction:column;align-items:stretch;gap:6px'+(closed?';opacity:.55':(s.paused?';opacity:.7':''))+'">'
+        +'<div style="display:flex;align-items:center;gap:8px"><b>Session #'+s.id+'</b>'+badge+'<span class="cap">'+instD+'</span><span class="'+cls+'" style="margin-left:auto;font-weight:800;font-size:14px">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>'
+        +'<div class="cap">budget '+money(s.allocated)+' · '+band+'</div>'
         +'<div class="cap" style="opacity:.85">👁 '+(s.last_look?(s.last_look.note||'surveille'):'en attente de données')+'</div>'
-        +'<div style="display:flex;gap:8px">'
-        +'<button class="btn" data-sact="'+(paused?'resume':'pause')+'" data-id="'+s.id+'">'+(paused?'▶ Reprendre':'⏸ Pause')+'</button>'
-        +'<button class="btn" data-sact="stop" data-id="'+s.id+'">⏹ Stop</button></div></div>';
+        +ctrls+'</div>';
     }).join('');
   };
   (function(){ const sc=$('sessions'); if(!sc)return; sc.addEventListener('click', async function(e){
@@ -1240,7 +1244,8 @@
     if(act==='stop'){ const np=(PAPER.positions||[]).filter(function(p){return p.session_id===id;}).length; if(!confirm('Stopper la session #'+id+' ? '+np+' position(s) seront fermées au prix courant.')) return; }
     const url=act==='stop'?'/api/paper/session/stop':(act==='resume'?'/api/paper/session/resume':'/api/paper/session/pause');
     const h=await authHeaders();
-    await fetch(url,{method:'POST',headers:h,body:JSON.stringify({session_id:id})}).catch(function(){});
+    const r=await fetch(url,{method:'POST',headers:h,body:JSON.stringify({session_id:id})}).then(function(x){return x.json();}).catch(function(){return {error:'endpoint indisponible'};});
+    if(r&&r.error) botAlert('rejected','Action impossible',r.error+" (API redemarree ?)",'red');
     refreshPaper();
   }); })();
   renderApprovals=function(){
@@ -1261,16 +1266,8 @@
   }); })();
   renderReports=function(){
     const el=$('reports'); if(!el)return;
-    const closed=(PAPER.sessions||[]).filter(function(s){return s.state==='closed';});
     const pm=JCACHE&&JCACHE.post_mortem;
     let h='';
-    if(closed.length){
-      h+=closed.slice().reverse().map(function(s){
-        const pnl=s.realized_pnl||0, cls=pnl>=0?'up':'down';
-        const inst=s.instrument?s.instrument.replace('_','/'):'';
-        return '<div class="msg"><b>Session #'+s.id+'</b> <span class="cap">'+inst+' · '+s.trades+' trade(s)</span> <span style="margin-left:auto;font-weight:700" class="'+cls+'">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>';
-      }).join('');
-    }
     if(pm&&pm.trades){
       h+='<div class="msg"><b>'+pm.trades+' trades</b> <span class="cap">'+pm.wins+'G/'+pm.losses+'P · réussite '+pm.win_rate+'%</span><span style="margin-left:auto;font-weight:700" class="'+(pm.expectancy_R>0?'up':'down')+'">espérance '+(pm.expectancy_R>=0?'+':'')+pm.expectancy_R+'R</span></div>';
       h+=((JCACHE.recent||[]).slice().reverse().slice(0,6).map(function(t){
