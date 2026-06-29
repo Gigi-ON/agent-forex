@@ -31,6 +31,17 @@ try:
     from config import PHASE1 as _P1
 except Exception:
     _P1 = {}
+try:
+    from config import PHASE2 as _P2
+except Exception:
+    _P2 = {}
+
+
+def _legs(pair):
+    """Devise de base et de cotation d'une paire ('EUR_USD' ou 'BTC/USD')."""
+    x = pair.replace("/", "_")
+    return (x.split("_", 1) + [None, None])[:2] if "_" in x else (pair, None)
+
 
 EXPIRY_SECONDS = 20
 AUTO_MIN_CONFIDENCE = 0.75
@@ -72,7 +83,8 @@ class Supervisor:
 
     # -- proposer ------------------------------------------------------------
     def propose(self, session, pair, candles, news_items,
-                quote_to_account, base_to_account, now=None, spread=None):
+                quote_to_account, base_to_account, now=None, spread=None,
+                portfolio=None, risk_scale=1.0):
         now = now or datetime.now(timezone.utc)
 
         sig = self.engine.evaluate(pair, candles)
@@ -101,15 +113,37 @@ class Supervisor:
         # dimensionné sur le BUDGET DE LA SESSION (pas tout le compte)
         rm = RiskManager(profile=session.profile)
         a_cur, a_avg = atr(candles, 14)
+        pf = portfolio or {}
         sized = rm.size_position(
             proposal=sig.proposal, equity_account_ccy=session.equity,
             quote_to_account_rate=quote_to_account,
             base_to_account_rate=base_to_account,
             current_atr=a_cur, average_atr=a_avg,
             external_caution=decision.caution_factor,
-            whole_units=("/" not in pair))
+            whole_units=("/" not in pair),
+            portfolio_open_risk=pf.get("open_risk", 0.0),
+            portfolio_equity=pf.get("equity", 0.0),
+            streak_scale=risk_scale)
         if not sized.accepted or sized.units == 0:
+            if sized.reasons:
+                self.last_look[session.id]["note"] = sized.reasons[0]
             return None
+
+        # GARDE DE CORRÉLATION : refuser si ce trade pousse l'exposition NETTE
+        # d'une devise au-delà du plafond (sinon on empile des paris corrélés,
+        # ex. long EUR via EUR/USD + EUR/GBP = un seul gros pari déguisé).
+        if pf.get("ccy_exposure") is not None and pf.get("equity", 0) > 0:
+            base_c, quote_c = _legs(pair)
+            sgn = 1.0 if sig.proposal.side == "buy" else -1.0
+            r = sized.risk_amount_account_ccy
+            exp = pf["ccy_exposure"]
+            cap = pf["equity"] * _P2.get("max_ccy_heat_pct", 4.0) / 100.0
+            legs = [(base_c, sgn * r), (quote_c, -sgn * r)]
+            for ccy, delta in legs:
+                if ccy and abs(exp.get(ccy, 0.0) + delta) > cap:
+                    self.last_look[session.id]["note"] = (
+                        "Exposition %s trop concentrée : trade ignoré (corrélation)." % ccy)
+                    return None
 
         p = Pending(
             session_id=session.id, pair=pair, proposal=sig.proposal,

@@ -105,6 +105,17 @@ class PaperEngine:
         except Exception:
             _P1 = {}
         self._P1 = _P1 or {}
+        try:
+            from config import PHASE2 as _P2
+        except Exception:
+            _P2 = {}
+        self._P2 = _P2 or {}
+        # --- Phase 2 : suivi pour survie & anti-overtrading ---
+        self._loss_streak = 0           # pertes consécutives (de-risking)
+        self._win_streak = 0
+        self._trades_today = 0          # plafond de trades/jour
+        self._last_loss_time = {}       # session_id -> datetime de la dernière perte
+        self._last_entry_time = {}      # pair -> datetime de la dernière entrée
 
     # -- sessions -----------------------------------------------------------
     def open_session(self, budget, accept_min=None, accept_max=None,
@@ -185,10 +196,19 @@ class PaperEngine:
                 self.last_price[_pair] = float(_m["price"])
 
         if self.running and not self.daily_halted:
+            _maxtd = self._P2.get("max_trades_per_day", 12)
+            _cool = self._P2.get("cooldown_min_after_loss", 0) * 60
+            _space = self._P2.get("min_minutes_between_same_pair", 0) * 60
             for session in list(self.manager.active):
                 if not self._can_open_more():
                     break
+                if self._trades_today >= _maxtd:
+                    break  # plafond de trades du jour atteint -> stop pour aujourd'hui
                 if getattr(session, "paused", False):
+                    continue
+                # cooldown : après une perte, la session attend avant de reprendre
+                _lt = self._last_loss_time.get(session.id)
+                if _lt and (now - _lt).total_seconds() < _cool:
                     continue
                 # une session = au plus UNE position ouverte (ou une proposition
                 # en attente) à la fois -> pas d'empilement sur un signal persistant
@@ -201,13 +221,18 @@ class PaperEngine:
                 for pair in pairs:
                     if not self._can_open_more():
                         break
+                    # espacement minimal entre deux entrées sur la même paire
+                    _et = self._last_entry_time.get(pair)
+                    if _et and (now - _et).total_seconds() < _space:
+                        continue
                     m = market.get(pair)
                     if not m or not self._tradeable(pair, m, now):
                         continue
                     self.supervisor.propose(
                         session, pair, m.get("candles", []), m.get("news", []),
                         m.get("q2a", 1.0), m.get("b2a", 1.0), now,
-                        spread=m.get("spread"))
+                        spread=m.get("spread"),
+                        portfolio=self._portfolio(), risk_scale=self._risk_scale())
                     self._sync_positions(now)   # MAJ immédiate du compte de positions
             self._sync_positions(now)
         return self.snapshot(now)
@@ -220,11 +245,42 @@ class PaperEngine:
             self._day_pnl = 0.0
             self._day_start_balance = self.manager.balance
             self._halt_logged = False
+            self._trades_today = 0      # nouveau jour -> compteur de trades remis à zéro
 
     @property
     def daily_halted(self):
         cap = self._HL.get("max_daily_loss_pct", 4.0)
         return self._day_pnl <= -(self._day_start_balance * cap / 100.0)
+
+    @staticmethod
+    def _legs(pair):
+        x = pair.replace("/", "_")
+        if "_" in x:
+            a, b = x.split("_", 1)
+            return a, b
+        return pair, None
+
+    def _ccy_exposure(self):
+        """Exposition NETTE par devise (en montant de risque), tous open confondus.
+        buy EUR_USD = +EUR / -USD ; sell = l'inverse."""
+        exp = {}
+        for pos in self.positions.values():
+            a, b = self._legs(pos.pair)
+            sgn = pos.initial_risk if pos.side == "buy" else -pos.initial_risk
+            if a:
+                exp[a] = exp.get(a, 0.0) + sgn
+            if b:
+                exp[b] = exp.get(b, 0.0) - sgn
+        return exp
+
+    def _portfolio(self):
+        return {"open_risk": self._open_risk(), "equity": self.manager.balance,
+                "ccy_exposure": self._ccy_exposure()}
+
+    def _risk_scale(self):
+        """De-risking anti-martingale : <1 après des pertes consécutives."""
+        return max(self._P2.get("derisk_floor", 0.4),
+                   1.0 - self._P2.get("derisk_step", 0.25) * self._loss_streak)
 
     def _open_risk(self):
         return sum(p.initial_risk for p in self.positions.values())
@@ -326,6 +382,8 @@ class PaperEngine:
                     original_stop=p.proposal.stop_loss,
                     hwm=p.proposal.entry_price, lwm=p.proposal.entry_price)
                 self.positions[pos.id] = pos
+                self._trades_today += 1
+                self._last_entry_time[pos.pair] = now
                 self._log("position", "Position ouverte %s %s" % (pos.pair, pos.side))
 
     def _manage_exit(self, pos, price, now):
@@ -426,6 +484,14 @@ class PaperEngine:
             notes=f"paper session={pos.session_id}"))
         self.manager.record_trade_pnl(pos.session_id, pnl)
         self._day_pnl += pnl
+        # Phase 2 : séries gagnantes/perdantes pour le de-risking
+        if pnl < 0:
+            self._loss_streak += 1
+            self._win_streak = 0
+            self._last_loss_time[pos.session_id] = now
+        elif pnl > 0:
+            self._win_streak += 1
+            self._loss_streak = 0
         self._log("trade", "%s %s · %+.2f$" % (pos.pair, reason, pnl))
         self.positions.pop(pos.id, None)
 

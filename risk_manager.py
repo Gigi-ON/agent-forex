@@ -28,6 +28,10 @@ from dataclasses import dataclass
 from enum import Enum
 
 from config import HARD_LIMITS
+try:
+    from config import PHASE2 as _P2
+except Exception:
+    _P2 = {}
 
 
 class Profile(str, Enum):
@@ -124,6 +128,9 @@ class RiskManager:
         average_atr: float = 0.0,
         external_caution: float = 1.0,
         whole_units: bool = True,
+        portfolio_open_risk: float = 0.0,
+        portfolio_equity: float = 0.0,
+        streak_scale: float = 1.0,
     ) -> SizingResult:
         """
         equity_account_ccy     : capital du compte, dans la devise du compte
@@ -173,6 +180,21 @@ class RiskManager:
         risk_amount_account = (
             equity_account_ccy * (risk_pct / 100.0) * vol_factor * ext
         )
+
+        # 6bis) PHASE 2 — DE-RISKING : réduit la taille après des pertes en série.
+        risk_amount_account *= max(0.0, min(1.0, streak_scale))
+
+        # 6ter) PHASE 2 — HEAT GLOBAL : la somme des risques ouverts ne doit pas
+        # dépasser un % du solde total. On réduit le trade pour rentrer dans le
+        # budget de risque restant ; s'il n'en reste plus, on refuse.
+        if portfolio_equity > 0:
+            heat_cap = portfolio_equity * _P2.get("max_portfolio_heat_pct", 6.0) / 100.0
+            remaining = heat_cap - max(0.0, portfolio_open_risk)
+            if remaining <= 0:
+                return SizingResult(False, 0, 0, 0, rr,
+                                    ["Heat global au plafond : risque cumulé maximal atteint."])
+            if risk_amount_account > remaining:
+                risk_amount_account = remaining
 
         # 7) Conversion du risque vers la devise de cotation.
         #    R_quote = R_account / (valeur d'1 unité de cotation en devise compte)

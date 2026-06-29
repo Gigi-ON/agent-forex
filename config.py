@@ -80,6 +80,22 @@ PHASE1 = {
     # Garde de session (Niveau 3) : pas d'auto-validation forex hors-session.
     "session_guard": True,
 }
+# --- Phase 2 : survie & portefeuille (gestion globale du risque) ------------
+PHASE2 = {
+    # Somme des risques ouverts (toutes positions) <= x% du SOLDE TOTAL.
+    "max_portfolio_heat_pct": 6.0,
+    # Exposition nette par devise <= x% du solde (ne pas empiler des paris corrélés).
+    "max_ccy_heat_pct": 4.0,
+    # De-risking anti-martingale : on réduit la taille après des pertes
+    # consécutives, on restaure après un gain. Multiplicateur = max(plancher,
+    # 1 - pas * pertes_consécutives).
+    "derisk_floor": 0.4, "derisk_step": 0.25,
+    # Anti-overtrading.
+    "cooldown_min_after_loss": 30,        # pause par session après une perte
+    "max_trades_per_day": 12,             # plafond global de trades/jour
+    "min_minutes_between_same_pair": 15,  # espacement des entrées sur une même paire
+}
+
 
 
 # --- Comptes OANDA (practice / live) ---------------------------------------
