@@ -1217,7 +1217,7 @@
   resolveTrade=function(){}; updateLearning=function(){};
   renderSessions=function(){
     const el=$('sessions'), em=$('sessEmpty'); if(!el)return;
-    const ss=PAPER.sessions||[];
+    const ss=(PAPER.sessions||[]).filter(function(s){return s.state!=='closed';});
     if(em) em.style.display=ss.length?'none':'';
     el.innerHTML=ss.map(function(s){
       const pnl=s.realized_pnl||0, cls=pnl>0?'up':(pnl<0?'down':'');
@@ -1261,13 +1261,23 @@
   }); })();
   renderReports=function(){
     const el=$('reports'); if(!el)return;
+    const closed=(PAPER.sessions||[]).filter(function(s){return s.state==='closed';});
     const pm=JCACHE&&JCACHE.post_mortem;
-    if(!pm||!pm.trades){ el.innerHTML='<div class="empty">Aucune session terminée.</div>'; return; }
-    let h='<div class="msg"><b>'+pm.trades+' trades</b> <span class="cap">'+pm.wins+'G/'+pm.losses+'P · réussite '+pm.win_rate+'%</span>'
-      +'<span style="margin-left:auto;font-weight:700" class="'+(pm.expectancy_R>0?'up':'down')+'">espérance '+(pm.expectancy_R>=0?'+':'')+pm.expectancy_R+'R</span></div>';
-    h+=((JCACHE.recent||[]).slice().reverse().slice(0,8).map(function(t){
-      return '<div class="msg"><b>'+t.pair.replace('_','/')+'</b> <span class="cap">'+t.exit_reason+'</span> <span style="margin-left:auto" class="'+(t.pnl>=0?'up':'down')+'">'+(t.pnl>=0?'+':'')+t.pnl+' $ ('+(t.r>=0?'+':'')+t.r+'R)</span></div>';
-    }).join(''));
+    let h='';
+    if(closed.length){
+      h+=closed.slice().reverse().map(function(s){
+        const pnl=s.realized_pnl||0, cls=pnl>=0?'up':'down';
+        const inst=s.instrument?s.instrument.replace('_','/'):'';
+        return '<div class="msg"><b>Session #'+s.id+'</b> <span class="cap">'+inst+' · '+s.trades+' trade(s)</span> <span style="margin-left:auto;font-weight:700" class="'+cls+'">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>';
+      }).join('');
+    }
+    if(pm&&pm.trades){
+      h+='<div class="msg"><b>'+pm.trades+' trades</b> <span class="cap">'+pm.wins+'G/'+pm.losses+'P · réussite '+pm.win_rate+'%</span><span style="margin-left:auto;font-weight:700" class="'+(pm.expectancy_R>0?'up':'down')+'">espérance '+(pm.expectancy_R>=0?'+':'')+pm.expectancy_R+'R</span></div>';
+      h+=((JCACHE.recent||[]).slice().reverse().slice(0,6).map(function(t){
+        return '<div class="msg"><b>'+t.pair.replace('_','/')+'</b> <span class="cap">'+t.exit_reason+'</span> <span style="margin-left:auto" class="'+(t.pnl>=0?'up':'down')+'">'+(t.pnl>=0?'+':'')+t.pnl+' $ ('+(t.r>=0?'+':'')+t.r+'R)</span></div>';
+      }).join(''));
+    }
+    if(!h) h='<div class="empty">Aucune session terminée.</div>';
     el.innerHTML=h;
   };
   renderLearning=function(){
