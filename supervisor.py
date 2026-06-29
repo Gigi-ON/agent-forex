@@ -27,6 +27,11 @@ from journal import Trade
 from session import Tutelle, AUTO_RISK_CAP
 from alerts import Alert
 
+try:
+    from config import PHASE1 as _P1
+except Exception:
+    _P1 = {}
+
 EXPIRY_SECONDS = 20
 AUTO_MIN_CONFIDENCE = 0.75
 
@@ -67,7 +72,7 @@ class Supervisor:
 
     # -- proposer ------------------------------------------------------------
     def propose(self, session, pair, candles, news_items,
-                quote_to_account, base_to_account, now=None):
+                quote_to_account, base_to_account, now=None, spread=None):
         now = now or datetime.now(timezone.utc)
 
         sig = self.engine.evaluate(pair, candles)
@@ -82,6 +87,16 @@ class Supervisor:
         decision = self.modulator.assess(news_items, pair, now)
         if decision.blackout:
             return None
+
+        # FILTRE DE SPREAD : si le coût d'entrée mange une part trop grande du
+        # risque (stop serré), l'edge disparaît -> on s'abstient.
+        if spread is not None and spread > 0:
+            stop_dist = abs(sig.proposal.entry_price - sig.proposal.stop_loss)
+            maxf = _P1.get("max_spread_frac", 0.30)
+            if stop_dist > 0 and spread > maxf * stop_dist:
+                self.last_look[session.id]["note"] = (
+                    "Spread %.5f > %d%% du stop : trade ignoré." % (spread, int(maxf * 100)))
+                return None
 
         # dimensionné sur le BUDGET DE LA SESSION (pas tout le compte)
         rm = RiskManager(profile=session.profile)
@@ -129,6 +144,16 @@ class Supervisor:
             return False
         cap = AUTO_RISK_CAP.get(session.risk_level, 0.5)
         risk_pct = p.risk / session.equity * 100 if session.equity else 99
+        # GARDE DE SESSION (Niveau 3) : pas d'auto-validation sur une paire forex
+        # dont aucune place domestique n'est ouverte (score 0). La crypto (24/7)
+        # n'est pas concernée. Une proposition reste possible en manuel.
+        if _P1.get("session_guard", True) and "/" not in p.pair:
+            try:
+                import sessions_clock as _sc
+                if _sc.score_pair(p.pair, _sc.open_sessions(_sc._now_utc())) <= 0:
+                    return False
+            except Exception:
+                pass
         return (lo <= p.confidence <= hi
                 and p.caution >= 1.0
                 and risk_pct <= cap)

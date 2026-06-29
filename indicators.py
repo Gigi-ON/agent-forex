@@ -76,3 +76,85 @@ def rsi(closes, period: int = 14):
             rs = avg_gain / avg_loss
             out.append(100.0 - 100.0 / (1.0 + rs))
     return out
+
+
+# ============================ Phase 1 — analyse avancée ============================
+
+def adx(candles, period: int = 14):
+    """
+    ADX (Average Directional Index, lissage de Wilder). Renvoie la dernière
+    valeur (0..100). Mesure la FORCE de tendance, pas son sens :
+      - ADX bas (< ~20) = pas de tendance (range) -> éviter le suivi de tendance.
+      - ADX élevé = tendance établie -> contexte favorable au trend-following.
+    """
+    n = len(candles)
+    if n < 2 * period + 1:
+        return 0.0
+    plus_dm, minus_dm, trs = [], [], []
+    for i in range(1, n):
+        up = candles[i]["h"] - candles[i - 1]["h"]
+        dn = candles[i - 1]["l"] - candles[i]["l"]
+        plus_dm.append(up if (up > dn and up > 0) else 0.0)
+        minus_dm.append(dn if (dn > up and dn > 0) else 0.0)
+        h, l, pc = candles[i]["h"], candles[i]["l"], candles[i - 1]["c"]
+        trs.append(max(h - l, abs(h - pc), abs(l - pc)))
+
+    def _wilder(x):
+        s = sum(x[:period])
+        out = [s]
+        for v in x[period:]:
+            s = s - s / period + v
+            out.append(s)
+        return out
+
+    if len(trs) < period:
+        return 0.0
+    atr_s, pdm_s, mdm_s = _wilder(trs), _wilder(plus_dm), _wilder(minus_dm)
+    dxs = []
+    for a, p, m in zip(atr_s, pdm_s, mdm_s):
+        if a <= 0:
+            dxs.append(0.0); continue
+        pdi, mdi = 100 * p / a, 100 * m / a
+        denom = pdi + mdi
+        dxs.append(100 * abs(pdi - mdi) / denom if denom else 0.0)
+    if not dxs:
+        return 0.0
+    if len(dxs) < period:
+        return dxs[-1]
+    val = sum(dxs[:period]) / period
+    for v in dxs[period:]:
+        val = (val * (period - 1) + v) / period
+    return val
+
+
+def recent_swing_low(candles, lookback: int = 10):
+    """Plus bas des `lookback` dernières bougies (support récent)."""
+    seg = candles[-lookback:]
+    return min((c["l"] for c in seg), default=None)
+
+
+def recent_swing_high(candles, lookback: int = 10):
+    """Plus haut des `lookback` dernières bougies (résistance récente)."""
+    seg = candles[-lookback:]
+    return max((c["h"] for c in seg), default=None)
+
+
+def resample(candles, k: int):
+    """
+    Agrège les bougies par blocs de `k` (ex : M15 -> H1 avec k=4) pour lire un
+    horizon supérieur. Aligné sur la FIN : la dernière bougie HTF inclut les
+    bougies les plus récentes ; le reliquat le plus ancien est ignoré.
+    """
+    if k <= 1:
+        return list(candles)
+    n = len(candles)
+    out, start = [], n % k
+    for i in range(start, n, k):
+        block = candles[i:i + k]
+        if len(block) < k:
+            continue
+        out.append({"o": block[0]["o"],
+                    "h": max(b["h"] for b in block),
+                    "l": min(b["l"] for b in block),
+                    "c": block[-1]["c"]})
+    return out

@@ -58,6 +58,29 @@ HARD_LIMITS = {
     # Ratio minimum gain potentiel / perte potentielle pour accepter un trade.
     "min_reward_risk_ratio": 1.5,
 }
+# --- Phase 1 : qualité de décision (pratiques de traders aguerris) ----------
+# Tous ces réglages sont centralisés ici pour calibration/backtest ultérieurs.
+PHASE1 = {
+    # Filtre de régime : ne suivre la tendance que si le marché TEND vraiment.
+    "adx_period": 14, "adx_min": 20.0,
+    # Confluence horizon supérieur : M15 -> H1 (facteur 4).
+    "htf_factor": 4, "htf_ema_fast": 20, "htf_ema_slow": 50,
+    # Entrée sur repli : refuser si le prix est trop loin de l'EMA rapide
+    # (= on chasse). Mesuré en multiples d'ATR.
+    "pullback_atr_mult": 1.5,
+    # Stop structurel : sous le dernier swing + tampon, borné entre min et max ATR.
+    "swing_lookback": 10, "swing_buffer_atr": 0.5,
+    "stop_min_atr": 2.0, "stop_max_atr": 4.0,
+    # Gestion de sortie (en multiples de R = distance entrée->stop initial).
+    "be_trigger_R": 1.0, "be_buffer_R": 0.05,
+    "partial_trigger_R": 1.0, "partial_frac": 0.5,
+    "trail_mult_R": 1.0,
+    # Filtre de spread : refuser si spread > x% de la distance de stop.
+    "max_spread_frac": 0.30,
+    # Garde de session (Niveau 3) : pas d'auto-validation forex hors-session.
+    "session_guard": True,
+}
+
 
 # --- Comptes OANDA (practice / live) ---------------------------------------
 # Le compte "practice" reprend les variables existantes (aucun changement requis

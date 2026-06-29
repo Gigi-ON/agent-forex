@@ -326,6 +326,24 @@
   .lockbar.safe b{color:var(--green)}.lockbar.open b{color:var(--coral)}
   .lockbar .lk-d{color:var(--muted);font-size:12px;margin-top:1px}
   /* ====== Vue Trading (Modern Minimalist) ====== */
+  /* Horloge des sessions */
+  .clk-sessions{display:flex;gap:8px;flex-wrap:wrap}
+  .clk-sess{display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;
+    border:1px solid var(--line);font-size:12.5px;color:var(--muted);background:var(--bg)}
+  .clk-sess.on{background:var(--green-soft);color:var(--green);border-color:transparent;font-weight:600}
+  .clk-sess .d{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  .clk-sess.on .d{background:var(--green)}
+  .clk-pairs{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .clk-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:10px;
+    border:1px solid var(--line);background:var(--card);cursor:pointer;font-weight:600;font-size:13px;transition:.15s}
+  .clk-chip:hover{border-color:var(--blue)}
+  .clk-chip.opt{background:var(--green-soft);color:var(--green);border-color:transparent}
+  .clk-chip .s{font-size:11px;font-weight:500;opacity:.75}
+  .badge.v-ideal{background:var(--green-soft);color:var(--green)}
+  .badge.v-actif{background:var(--blue-soft);color:var(--blue)}
+  .badge.v-calme{background:var(--amber-soft);color:var(--amber)}
+  .badge.v-ferme{background:var(--coral-soft);color:var(--coral)}
+  .tvopt-hot{font-weight:700}
   @keyframes tvFlashUp{0%{background:var(--green-soft)}100%{background:transparent}}
   @keyframes tvFlashDn{0%{background:var(--coral-soft)}100%{background:transparent}}
   .tv-up{animation:tvFlashUp .5s ease-out}
@@ -803,6 +821,16 @@
         <div><div class="cap">Instrument</div>
           <select id="tvPair" class="fld" style="min-width:175px"></select></div>
         <div id="tvMktStatus" class="badge" style="margin-left:auto">…</div>
+      </div>
+      <div class="card" id="tvClock">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <h3 style="margin:0">Quand trader · maintenant</h3>
+          <span id="clkVerdict" class="badge">…</span>
+          <span id="clkReason" class="cap" style="flex:1;min-width:160px"></span>
+        </div>
+        <div id="clkSessions" class="clk-sessions" style="margin-top:12px"></div>
+        <div id="clkPairs" class="clk-pairs" style="margin-top:12px"></div>
+        <div id="clkNote" class="cap" style="margin-top:8px"></div>
       </div>
       <div class="tvgrid">
         <div class="card"><h3>Marchés</h3><div id="tvWatch" style="margin-top:6px"><div class="cap">Chargement…</div></div></div>
@@ -1346,10 +1374,41 @@
     sel.innerHTML=list.map(function(pr){return '<option value="'+pr+'">'+pr+'</option>';}).join("");
     if(!TVsel||list.indexOf(TVsel)<0){ TVsel=list[0]; }
     sel.value=TVsel;
+    if(typeof tvMarkHot==="function") tvMarkHot();
   }
   function tvFmtET(iso){ try{ return new Date(iso).toLocaleString("fr-CA",{timeZone:"America/Toronto",weekday:"short",hour:"2-digit",minute:"2-digit"}); }catch(e){ return iso; } }
   function tvCountdown(iso){ const ms=new Date(iso)-new Date(); if(ms<=0)return "imminent"; const h=Math.floor(ms/3.6e6), mn=Math.floor(ms%3.6e6/6e4); return (h>0?h+" h ":"")+mn+" m"; }
   async function tvRefreshMarket(){ try{ TVmkt=await API("/api/market"); }catch(e){ TVmkt=null; } tvRenderStatus(); }
+  window.TVhot={};
+  async function tvRefreshClock(){
+    let c; try{ c=await API("/api/sessions-clock"); }catch(e){ c=null; }
+    if(!c||c.error)return;
+    const map={"Idéal":"ideal","Actif":"actif","Calme":"calme","Fermé":"ferme"};
+    const vb=$("clkVerdict"); if(vb){ vb.className="badge v-"+(map[c.verdict]||"calme"); vb.textContent=c.verdict; }
+    if($("clkReason")) $("clkReason").textContent=c.reason||"";
+    if($("clkSessions")) $("clkSessions").innerHTML=(c.sessions||[]).map(function(x){
+      return '<span class="clk-sess'+(x.open?" on":"")+'"><span class="d"></span>'+x.name+'</span>'; }).join("");
+    const tp=c.top_pairs||[];
+    if($("clkPairs")){
+      if(!tp.length) $("clkPairs").innerHTML='<span class="cap">Aucune paire en session — inaction par défaut.</span>';
+      else $("clkPairs").innerHTML='<span class="cap" style="margin-right:2px">Meilleures paires&nbsp;:</span>'+tp.map(function(pp){
+        return '<span class="clk-chip'+(pp.tier==="optimal"?" opt":"")+'" data-disp="'+pp.pair+'">'+pp.pair+' <span class="s">'+(pp.tier==="optimal"?"optimal":"correct")+'</span></span>'; }).join("");
+    }
+    if($("clkNote")) $("clkNote").textContent=c.crypto_note||"";
+    window.TVhot=tp.reduce(function(o,pp){o[pp.pair]=pp.tier;return o;},{});
+    tvMarkHot();
+  }
+  function tvMarkHot(){
+    const sel=$("tvPair"); if(!sel||($("tvMarket")&&$("tvMarket").value!=="forex"))return;
+    [].forEach.call(sel.options,function(o){
+      const base=o.value, hot=window.TVhot[base];
+      o.text=base+(hot?(hot==="optimal"?"  ★ optimal":"  • correct"):"");
+    });
+  }
+  function tvSelectPair(disp){
+    if($("tvMarket")&&$("tvMarket").value!=="forex"){ $("tvMarket").value="forex"; tvPopulatePairs().then(function(){ TVsel=disp; if($("tvPair"))$("tvPair").value=disp; tvMarkHot(); tvRefreshPrices(); }); return; }
+    TVsel=disp; if($("tvPair"))$("tvPair").value=disp; tvRefreshPrices();
+  }
   function tvRenderStatus(){
     const el=$('tvMktStatus'); if(!el)return;
     if($('tvMarket')&&$('tvMarket').value==="crypto"){ el.textContent="● Crypto — 24/7"; el.style.color="var(--green)"; return; }
@@ -1409,8 +1468,9 @@
       else{ $('tvMsg').innerHTML='<span class="up">Session #'+r.session_id+" ouverte ("+money(budget)+'). Propositions dans « Bot sous tutelle ».</span>'; if(typeof refreshPaper==="function") refreshPaper(); }
     };
     if($('tvBandWrap'))$('tvBandWrap').style.display="";
-    tvPopulatePairs().then(function(){ tvRefreshMarket(); tvRefreshPrices(); });
-    setInterval(tvRefreshPrices,5000); setInterval(tvRefreshMarket,30000); setInterval(tvRenderStatus,1000);
+    if($('clkPairs')) $('clkPairs').addEventListener("click",function(e){ const ch=e.target.closest("[data-disp]"); if(ch) tvSelectPair(ch.dataset.disp); });
+    tvPopulatePairs().then(function(){ tvRefreshMarket(); tvRefreshPrices(); tvRefreshClock(); });
+    setInterval(tvRefreshPrices,5000); setInterval(tvRefreshMarket,30000); setInterval(tvRenderStatus,1000); setInterval(tvRefreshClock,60000);
   })();
 
   (function(){

@@ -52,6 +52,13 @@ class PaperPosition:
     caution: float
     entry_time: str
     max_hold_min: int = 240
+    # --- Phase 1 : gestion de sortie (break-even / partielle / trailing) ---
+    r_unit: float = 0.0             # 1R fixe = distance entrée->stop INITIAL
+    original_stop: float = 0.0      # stop d'origine (référence)
+    be_done: bool = False           # break-even déjà appliqué ?
+    partial_done: bool = False      # prise partielle déjà faite ?
+    hwm: float = 0.0                # plus haut atteint depuis l'entrée (buy)
+    lwm: float = 0.0                # plus bas atteint depuis l'entrée (sell)
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
     @property
@@ -59,8 +66,10 @@ class PaperPosition:
         return abs(self.entry_price - self.stop_loss)
 
     def realized_R(self, price):
-        """R réalisé pour un prix de sortie donné (signé selon le sens)."""
-        d = self.risk_distance
+        """R réalisé pour un prix de sortie donné (signé selon le sens).
+        Base = r_unit (1R fixe à l'entrée) pour rester correct même après que le
+        stop a été déplacé à break-even ou trailé."""
+        d = self.r_unit if self.r_unit > 0 else self.risk_distance
         if d <= 0:
             return 0.0
         move = (price - self.entry_price) if self.side == "buy" else (self.entry_price - price)
@@ -91,6 +100,11 @@ class PaperEngine:
         self._day_start_balance = float(starting_balance)
         from config import HARD_LIMITS as _HL
         self._HL = _HL
+        try:
+            from config import PHASE1 as _P1
+        except Exception:
+            _P1 = {}
+        self._P1 = _P1 or {}
 
     # -- sessions -----------------------------------------------------------
     def open_session(self, budget, accept_min=None, accept_max=None,
@@ -192,7 +206,8 @@ class PaperEngine:
                         continue
                     self.supervisor.propose(
                         session, pair, m.get("candles", []), m.get("news", []),
-                        m.get("q2a", 1.0), m.get("b2a", 1.0), now)
+                        m.get("q2a", 1.0), m.get("b2a", 1.0), now,
+                        spread=m.get("spread"))
                     self._sync_positions(now)   # MAJ immédiate du compte de positions
             self._sync_positions(now)
         return self.snapshot(now)
@@ -306,9 +321,63 @@ class PaperEngine:
                     take_profit=p.proposal.take_profit,
                     initial_risk=p.risk, confidence=p.confidence,
                     caution=p.caution,
-                    entry_time=now.strftime("%Y-%m-%dT%H:%M:%SZ"))
+                    entry_time=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    r_unit=abs(p.proposal.entry_price - p.proposal.stop_loss),
+                    original_stop=p.proposal.stop_loss,
+                    hwm=p.proposal.entry_price, lwm=p.proposal.entry_price)
                 self.positions[pos.id] = pos
                 self._log("position", "Position ouverte %s %s" % (pos.pair, pos.side))
+
+    def _manage_exit(self, pos, price, now):
+        """Phase 1 — pilotage de sortie en multiples de R (break-even, prise
+        partielle, trailing). Ne ferme rien : ajuste le stop / réduit la taille.
+        La fermeture reste gérée par le contrôle SL/TP qui suit."""
+        P = self._P1
+        # suivi des extrêmes depuis l'entrée
+        if pos.side == "buy":
+            pos.hwm = max(pos.hwm or pos.entry_price, price)
+        else:
+            pos.lwm = min(pos.lwm or pos.entry_price, price)
+        R = pos.realized_R(price)
+        # a) prise partielle à +partial_trigger_R
+        if (not pos.partial_done and P.get("partial_frac", 0) > 0
+                and R >= P.get("partial_trigger_R", 1.0) and abs(pos.units) > 0):
+            self._scale_out(pos, price, P["partial_frac"], now)
+            pos.partial_done = True
+        # b) passage à break-even à +be_trigger_R
+        if not pos.be_done and R >= P.get("be_trigger_R", 1.0) and pos.r_unit > 0:
+            buf = P.get("be_buffer_R", 0.0) * pos.r_unit
+            pos.stop_loss = (pos.entry_price + buf) if pos.side == "buy" else (pos.entry_price - buf)
+            pos.be_done = True
+        # c) trailing une fois à break-even
+        if pos.be_done and P.get("trail_mult_R", 0) > 0 and pos.r_unit > 0:
+            td = P["trail_mult_R"] * pos.r_unit
+            if pos.side == "buy":
+                pos.stop_loss = max(pos.stop_loss, pos.hwm - td)
+            else:
+                pos.stop_loss = min(pos.stop_loss, pos.lwm + td)
+
+    def _scale_out(self, pos, price, frac, now):
+        """Clôture une fraction de la position et la journalise (PARTIAL)."""
+        frac = max(0.0, min(0.9, frac))
+        closed_units = pos.units * frac          # signé
+        portion_risk = pos.initial_risk * frac
+        pnl = round(portion_risk * pos.realized_R(price), 2)
+        if self.journal:
+            self.journal.record(Trade(
+                pair=pos.pair, side=pos.side, units=closed_units,
+                entry_price=pos.entry_price, stop_loss=pos.stop_loss,
+                take_profit=pos.take_profit, entry_time=pos.entry_time,
+                initial_risk=portion_risk, exit_price=round(price, 5),
+                exit_time=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                exit_reason="PARTIAL", pnl=pnl, profile=pos.side,
+                signal_confidence=pos.confidence, caution_factor=pos.caution,
+                notes="partial %d%% session=%s" % (int(frac * 100), pos.session_id)))
+        self.manager.record_trade_pnl(pos.session_id, pnl)
+        self._day_pnl += pnl
+        self._log("trade", "%s PARTIAL %+.2f$" % (pos.pair, pnl))
+        pos.units -= closed_units
+        pos.initial_risk -= portion_risk
 
     def _update_positions(self, market, now):
         for pos in list(self.positions.values()):
@@ -316,6 +385,7 @@ class PaperEngine:
             if not m or m.get("price") is None:
                 continue
             price = float(m["price"])
+            self._manage_exit(pos, price, now)
             reason, exit_price = None, price
             if pos.side == "buy":
                 if price <= pos.stop_loss:
@@ -340,7 +410,9 @@ class PaperEngine:
         return (now - t0).total_seconds() >= pos.max_hold_min * 60
 
     def _close(self, pos, exit_price, reason, now):
-        R = -1.0 if reason == "STOP" else pos.realized_R(exit_price)
+        # R calculé sur le prix de sortie réel : un STOP au niveau d'origine donne
+        # bien -1R, mais un stop passé à break-even ou trailé peut être >= 0.
+        R = pos.realized_R(exit_price)
         pnl = round(pos.initial_risk * R, 2)
         self.journal.record(Trade(
             pair=pos.pair, side=pos.side, units=pos.units,

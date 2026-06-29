@@ -331,7 +331,8 @@ def _gather_market():
             price = (px["bid"] + px["ask"]) / 2.0
             q2a, b2a = _rates_cached(od, pair)   # taux mis en cache (B9)
             market[pair] = {"candles": candles, "price": price, "news": [],
-                            "q2a": q2a, "b2a": b2a, "stale": _candle_stale(candles)}
+                            "q2a": q2a, "b2a": b2a, "stale": _candle_stale(candles),
+                            "spread": abs(px["ask"] - px["bid"])}
         except Exception:
             continue
     # --- crypto (Kraken) pour les sessions crypto actives (24/7) ---
@@ -352,8 +353,15 @@ def _gather_market():
                 price = q["mid"] if (q and q.get("mid") is not None) else (candles[-1]["c"] if candles else None)
                 if price is None or not candles:
                     continue
+                _sp = None
+                try:
+                    if q and q.get("ask") is not None and q.get("bid") is not None:
+                        _sp = abs(float(q["ask"]) - float(q["bid"]))
+                except Exception:
+                    _sp = None
                 market[sym] = {"candles": candles, "price": price, "news": [],
-                               "q2a": usdcad, "b2a": price * usdcad, "stale": False}
+                               "q2a": usdcad, "b2a": price * usdcad, "stale": False,
+                               "spread": _sp}
             except Exception:
                 continue
     return market

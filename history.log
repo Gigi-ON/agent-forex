@@ -1,0 +1,5 @@
+nohup: ignoring input
+ERR 1INCH/USD 1D -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Day&start=2018-01-01T00%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 1H -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Hour&start=2021-01-01T00%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 15Min -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=15Min&start=2024-01-01T00%3A00%3A00Z&limit=10000&sort=asc
+Pipeline backfill terminé : 508556 bougies traitées sur 100 cryptos.
