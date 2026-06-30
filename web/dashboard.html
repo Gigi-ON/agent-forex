@@ -928,6 +928,11 @@
     <section class="view" id="view-risque">
       <div class="card"><h3>Gestion du risque</h3><div class="cap" style="margin:3px 0 12px">Plafonds durs, exposition courante et verrou d'exécution.</div>
         <div id="pgRisque"><div class="cap">Chargement…</div></div></div>
+      <div class="card" style="margin-top:14px"><h3>Ingénieur — optimiseur de config (Claude)</h3>
+        <div class="cap" style="margin:2px 0 10px">Propose des ajustements PHASE1/PHASE2 pour mieux entrer sur le marché. <b>3 étapes</b> : Proposer → Réviser (backtest avant/après) → Appliquer. L'IA propose, <b>tu valides</b>. Jamais de secrets.</div>
+        <button class="btn primary" id="ingAnalyze">Analyser ma config</button>
+        <div id="ingOut" style="margin-top:12px"></div>
+      </div>
       <div class="card" style="margin-top:14px"><h3>Stratégie active <span class="cap" id="stratVer" style="font-weight:600"></span></h3>
         <div class="cap" style="margin:2px 0 8px">Réglages PHASE1/PHASE2 au runtime (modifiables sans redéploiement). L'Ingénieur les ajustera via validation 3 étapes. Historique + rollback :</div>
         <div id="stratDiff" class="cap"></div>
@@ -1402,6 +1407,46 @@
     loadStrategy();
   }); })();
   loadStrategy(); setInterval(loadStrategy,30000);
+  function ingDiff(diff){ var out=[]; ['PHASE1','PHASE2'].forEach(function(sec){ var o=(diff||{})[sec]||{}; Object.keys(o).forEach(function(k){ out.push(sec.replace('PHASE','P')+'.'+k+'='+o[k]); }); }); return out; }
+  function ingRender(p){ var el=$('ingOut'); if(!el)return;
+    if(!p){ el.innerHTML='<div class="cap">Aucune proposition. Clique « Analyser ma config » pour en générer une.</div>'; return; }
+    var keys=ingDiff(p.diff); var SB={proposee:'var(--amber)',validee:'var(--green)',rejetee:'var(--coral)',appliquee:'var(--blue)'};
+    var h='<div class="msg" style="flex-direction:column;align-items:stretch;gap:6px">'
+      +'<div><b>Proposition '+p.id+'</b> <span class="cap" style="color:'+(SB[p.status]||'var(--muted)')+';font-weight:600">'+p.status+'</span></div>'
+      +'<div class="cap"><b>Diff :</b> '+(keys.length?keys.join(' · '):'(vide)')+'</div>'
+      +'<div class="cap"><b>Pourquoi :</b> '+(p.rationale||'—')+'</div>'
+      +'<div class="cap"><b>Impact attendu :</b> '+(p.expected_impact||'—')+'</div>'
+      +(p.dropped&&p.dropped.length?'<div class="cap" style="color:var(--coral)">⚠️ clés ignorées (hors périmètre) : '+p.dropped.join(', ')+'</div>':'');
+    var acts='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">';
+    if(p.status==='proposee'||p.status==='validee') acts+='<button class="btn" data-ing="backtest" data-id="'+p.id+'">Backtest avant/après</button>';
+    if(p.status==='proposee'){ acts+='<button class="btn green" data-ing="valider" data-id="'+p.id+'">Valider</button><button class="btn red" data-ing="rejeter" data-id="'+p.id+'">Rejeter</button>'; }
+    if(p.status==='validee') acts+='<button class="btn primary" data-ing="appliquer" data-id="'+p.id+'">Appliquer (étape 3)</button>';
+    acts+='</div><div id="ingBt" class="cap" style="margin-top:6px"></div></div>';
+    el.innerHTML=h+acts;
+  }
+  async function ingLoad(){ try{ var d=await API('/api/ingenieur/proposals'); var list=(d&&d.proposals)||[];
+    var p=list.find(function(x){return x.status==='proposee'||x.status==='validee';})||list[0]; ingRender(p);
+  }catch(e){ ingRender(null); } }
+  if($('ingAnalyze')) $('ingAnalyze').onclick=async function(){ var el=$('ingOut'); if(el)el.innerHTML='<div class="cap">Analyse en cours… (Claude)</div>'; this.disabled=true;
+    try{ var h=await authHeaders(); h['Content-Type']='application/json';
+      var r=await fetch('/api/ingenieur/analyze',{method:'POST',headers:h,body:'{}'}).then(function(x){return x.json();});
+      if(r&&r.error){ el.innerHTML='<div class="cap">Indisponible : '+r.error+(r.error.indexOf('OPENROUTER')>=0||r.error.indexOf('clé')>=0?' (clé OpenRouter requise)':'')+'</div>'; }
+      else ingRender(r);
+    }catch(e){ if(el)el.innerHTML='<div class="cap">Erreur : '+e+'</div>'; }
+    this.disabled=false;
+  };
+  (function(){ var el=$('ingOut'); if(!el)return; el.addEventListener('click', async function(e){
+    var b=e.target.closest('[data-ing]'); if(!b)return; var act=b.dataset.ing, id=b.dataset.id; var h=await authHeaders(); h['Content-Type']='application/json';
+    if(act==='backtest'){ var bt=$('ingBt'); if(bt)bt.textContent='Backtest en cours…';
+      var r=await fetch('/api/ingenieur/backtest',{method:'POST',headers:h,body:JSON.stringify({id:id})}).then(function(x){return x.json();}).catch(function(){return{};});
+      if(bt){ var rows=(r&&r.impact)||[]; bt.innerHTML='<b>Backtest avant/après :</b><br>'+(rows.length?rows.map(function(x){ var be='✅';if(x.apres.exp<=x.avant.exp)be='❌'; return x.instrument+' : '+x.avant.exp+' R → '+x.apres.exp+' R '+be+' ('+x.apres.n+' trades)'; }).join('<br>'):'pas de données')+'<br><span class="cap">'+(r.note||'')+'</span>'; }
+      return; }
+    if(act==='rejeter'||act==='valider'){ await fetch('/api/ingenieur/review',{method:'POST',headers:h,body:JSON.stringify({id:id,decision:act})}).catch(function(){}); ingLoad(); return; }
+    if(act==='appliquer'){ if(!(await confirmModal('Appliquer ce diff à la stratégie active ? (versionné, rollback possible)','Appliquer')))return;
+      var r=await fetch('/api/ingenieur/apply',{method:'POST',headers:h,body:JSON.stringify({id:id})}).then(function(x){return x.json();}).catch(function(){return{};});
+      ingLoad(); if(typeof loadStrategy==='function')loadStrategy(); return; }
+  }); })();
+  ingLoad();
   (function(){ var b=$('copBtn'); if(!b)return;
     b.onclick=async function(){
       var out=$('copOut'); if(out)out.textContent='Analyse en cours… (quelques secondes)'; b.disabled=true;

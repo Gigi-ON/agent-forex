@@ -840,6 +840,50 @@ def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
         return {"error": str(e)}
 
 
+@app.post("/api/ingenieur/analyze")
+def ingenieur_analyze(body: dict = Body(default={}), user=Depends(require_user)):
+    """Étape 1 — l'Ingénieur (Claude) analyse et PROPOSE un diff PHASE1/PHASE2."""
+    import ingenieur, strategy
+    try:
+        ctx = {"post_mortem": journal(), "calibration": learning(),
+               "config_courante": strategy.current().get("params")}
+    except Exception as e:
+        ctx = {"erreur_contexte": str(e)}
+    return ingenieur.propose(ctx)
+
+
+@app.get("/api/ingenieur/proposals")
+def ingenieur_proposals():
+    import ingenieur
+    return {"proposals": ingenieur.proposals()}
+
+
+@app.post("/api/ingenieur/backtest")
+def ingenieur_backtest(body: dict = Body(...), user=Depends(require_user)):
+    """Étape 2 — backtest AVANT/APRÈS du diff (impact PHASE1 sur l'espérance)."""
+    import ingenieur
+    diff = body.get("diff")
+    if not diff and body.get("id"):
+        pr = ingenieur.get(body["id"])
+        diff = pr.get("diff") if pr else None
+    insts = body.get("instruments") or ["BTC/USD", "ETH/USD", "EUR_USD"]
+    return ingenieur.backtest_impact(diff or {}, insts)
+
+
+@app.post("/api/ingenieur/review")
+def ingenieur_review(body: dict = Body(...), user=Depends(require_user)):
+    """Étape 2 — valider / rejeter (et optionnellement éditer le diff)."""
+    import ingenieur
+    return ingenieur.review(body.get("id"), body.get("decision"), edits=body.get("edits"))
+
+
+@app.post("/api/ingenieur/apply")
+def ingenieur_apply(body: dict = Body(...), user=Depends(require_user)):
+    """Étape 3 — appliquer une proposition validée (versionné, rollback dispo)."""
+    import ingenieur
+    return ingenieur.apply(body.get("id"))
+
+
 @app.get("/api/strategy")
 def strategy_state():
     """État de la stratégie runtime : version courante, réglages effectifs vs défauts,
