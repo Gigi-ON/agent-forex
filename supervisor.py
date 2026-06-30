@@ -152,8 +152,11 @@ class Supervisor:
             caution=decision.caution_factor, created=now)
         self.pending[p.id] = p
 
-        # AUTO : peut-on auto-approuver ?
-        if self._auto_ok(session, p):
+        # DÉCISION : auto-validation ou attente, avec RAISON explicite (observabilité UI)
+        ok, why = self._auto_decision(session, p, now)
+        self.last_look[session.id]["note"] = why
+        self.last_look[session.id]["decision"] = "auto" if ok else "pending"
+        if ok:
             self.approve(p.id, now, auto=True)
             return p
 
@@ -168,29 +171,35 @@ class Supervisor:
                 session_id=session.id, approval_id=p.id))
         return p
 
-    def _auto_ok(self, session, p: Pending) -> bool:
-        # Auto-validation pilotee par la BANDE D'ACCEPTATION de la session :
-        #   min <= confiance <= max  ET prudence macro pleine ET risque sous le
-        #   sous-plafond. Sans bande definie -> jamais d'auto (mode manuel).
+    def _auto_decision(self, session, p: Pending, now=None):
+        """Renvoie (auto_ok, raison_lisible). La raison alimente l'UI -> on voit
+        EXACTEMENT pourquoi un signal valide trade ou attend."""
+        side = p.proposal.side
+        cpct = round(p.confidence * 100)
         lo = getattr(session, "accept_min", None)
         hi = getattr(session, "accept_max", None)
         if lo is None or hi is None:
-            return False
+            return False, "⏳ Manuel — %s conf %d%% : à valider (Oui/Non)" % (side, cpct)
+        if not (lo <= p.confidence <= hi):
+            return False, "⏳ Conf %d%% hors bande %d–%d%% — à valider" % (cpct, round(lo * 100), round(hi * 100))
+        if p.caution < 1.0:
+            return False, "⏳ Prudence news (%.2f) — à valider" % p.caution
         cap = AUTO_RISK_CAP.get(session.risk_level, 0.5)
         risk_pct = p.risk / session.equity * 100 if session.equity else 99
-        # GARDE DE SESSION (Niveau 3) : pas d'auto-validation sur une paire forex
-        # dont aucune place domestique n'est ouverte (score 0). La crypto (24/7)
-        # n'est pas concernée. Une proposition reste possible en manuel.
+        if risk_pct > cap:
+            return False, "⏳ Risque %.1f%% > plafond %.1f%% — à valider" % (risk_pct, cap)
+        # GARDE DE SESSION (Niveau 3) : forex hors séance -> pas d'auto (crypto 24/7 OK)
         if _P1.get("session_guard", True) and "/" not in p.pair:
             try:
                 import sessions_clock as _sc
                 if _sc.score_pair(p.pair, _sc.open_sessions(_sc._now_utc())) <= 0:
-                    return False
+                    return False, "⛔ Hors séance (%s) — auto bloqué, à valider" % p.pair.replace("_", "/")
             except Exception:
                 pass
-        return (lo <= p.confidence <= hi
-                and p.caution >= 1.0
-                and risk_pct <= cap)
+        return True, "✅ Auto-validé — %s conf %d%%" % (side, cpct)
+
+    def _auto_ok(self, session, p: Pending) -> bool:
+        return self._auto_decision(session, p, None)[0]
 
     # -- décisions humaines --------------------------------------------------
     def approve(self, pending_id, now=None, auto=False):
