@@ -690,6 +690,37 @@ def instruments(asset: str = "forex"):
         return {"asset": asset, "instruments": fb, "fallback": True, "detail": str(e)}
 
 
+@app.get("/api/top-crypto")
+def top_crypto():
+    """Top 10 crypto à cibler : volume 24 h + market cap + momentum (CoinGecko),
+    restreint à l'univers tradable."""
+    try:
+        import coingecko
+        rows = coingecko.rank_crypto(coingecko.markets_cached(),
+                                     list(config.CRYPTO_PRIORITY), top=10)
+        return {"top": rows}
+    except Exception as e:
+        return {"error": "CoinGecko indisponible", "detail": str(e), "top": []}
+
+
+@app.get("/api/top-forex")
+def top_forex():
+    """Top 10 paires forex à trader MAINTENANT : marché ouvert (horloge des sessions)
+    + liquidité (rang majors). Pas de market cap en forex -> liquidité + état session."""
+    try:
+        import sessions_clock as sc
+        nu = sc._now_utc()
+        open_set = sc.open_sessions(nu)
+        weekend = sc._forex_closed_weekend(nu)
+        verd, why = sc.verdict(open_set, sc.active_overlaps(open_set), weekend)
+        top = [] if weekend else sc.rank_pairs(list(config.FOREX_PRIORITY), open_set, top=10)
+        return {"verdict": verd, "reason": why, "weekend": weekend,
+                "sessions": [{"name": x, "open": (not weekend) and (x in open_set)} for x in sc.SESSIONS],
+                "top": top}
+    except Exception as e:
+        return {"error": str(e), "top": []}
+
+
 @app.get("/api/crypto")
 def crypto_prices():
     """Cours crypto via l'API publique Kraken (lecture seule, aucune clé requise)."""

@@ -494,6 +494,18 @@
       </div>
     </div>
 
+    <!-- Top 10 crypto + Top 10 forex (à cibler maintenant) -->
+    <div class="grid r2" style="margin-bottom:14px">
+      <div class="card"><h3>Top 10 crypto à cibler</h3>
+        <div class="cap" style="margin-top:3px">Volume 24 h + capitalisation + momentum (CoinGecko)</div>
+        <div id="topCrypto" style="margin-top:10px;display:flex;flex-direction:column;gap:6px"><div class="cap">Chargement…</div></div>
+      </div>
+      <div class="card"><h3>Top 10 forex — maintenant <span class="cap" id="topfVerdict" style="font-weight:600"></span></h3>
+        <div class="cap" style="margin-top:3px">Marché ouvert (horloge des sessions) + liquidité</div>
+        <div id="topForex" style="margin-top:10px;display:flex;flex-direction:column;gap:6px"><div class="cap">Chargement…</div></div>
+      </div>
+    </div>
+
     <!-- Données réelles OANDA (lecture seule via l'API) -->
     <div class="card" id="liveCard">
       <h3>🛰 Données réelles — OANDA <span class="cap" id="liveDot" style="font-weight:600">○ connexion…</span></h3>
@@ -1296,6 +1308,37 @@
     }).join('');
   }
   refreshProviders(); setInterval(refreshProviders,20000);
+  function fmtBig(v){ if(v==null)return '—'; v=Number(v); if(v>=1e9)return (v/1e9).toFixed(1)+' Md'; if(v>=1e6)return (v/1e6).toFixed(0)+' M'; return Math.round(v).toLocaleString('fr-CA'); }
+  function stBadge(st){ var c=st==='haussier'?'var(--green)':(st==='baissier'?'var(--coral)':'var(--muted)'); return '<span style="color:'+c+';font-weight:600">'+st+'</span>'; }
+  function pickInstrument(market, disp){
+    if($('tvMarket')) $('tvMarket').value=market;
+    if(typeof showView==='function') showView('trading');
+    if(typeof tvPopulatePairs==='function'){ tvPopulatePairs().then(function(){
+      try{ TVsel=disp; }catch(e){} if($('tvPair'))$('tvPair').value=disp;
+      if(typeof tvMarkHot==='function')tvMarkHot(); if(typeof tvRefreshPrices==='function')tvRefreshPrices();
+    }); }
+  }
+  async function refreshTops(){
+    try{ var c=await API('/api/top-crypto'); var el=$('topCrypto');
+      if(el){ var rows=(c&&c.top)||[];
+        el.innerHTML = rows.length ? rows.map(function(r,i){
+          return '<div class="msg" data-mkt="crypto" data-disp="'+r.symbol+'" style="cursor:pointer"><b style="min-width:78px">'+(i+1)+'. '+r.symbol+'</b> '+stBadge(r.state)+'<span class="cap" style="margin-left:auto;text-align:right">vol '+fmtBig(r.volume_24h)+' $ · cap '+fmtBig(r.market_cap)+' $ · '+(r.change_24h>=0?'+':'')+Number(r.change_24h).toFixed(1)+'%</span></div>';
+        }).join('') : '<div class="cap">'+((c&&c.error)?'CoinGecko indisponible (API hors ligne).':'Aucune donnée.')+'</div>';
+      }
+    }catch(e){}
+    try{ var f=await API('/api/top-forex'); var fl=$('topForex');
+      if($('topfVerdict')) $('topfVerdict').textContent=(f&&f.verdict)?('· '+f.verdict):'';
+      if(fl){ if(f&&f.weekend){ fl.innerHTML='<div class="cap">Marché forex fermé (week-end).</div>'; }
+        else { var fr=(f&&f.top)||[];
+          fl.innerHTML = fr.length ? fr.map(function(r,i){
+            return '<div class="msg" data-mkt="forex" data-disp="'+r.pair+'" style="cursor:pointer"><b style="min-width:78px">'+(i+1)+'. '+r.pair+'</b> <span class="cap">'+(r.tier==='optimal'?'★ optimal':'• correct')+'</span><span class="cap" style="margin-left:auto">score '+r.score+'</span></div>';
+          }).join('') : '<div class="cap">'+((f&&f.error)?'Indisponible.':'Aucune paire en session.')+'</div>';
+        }
+      }
+    }catch(e){}
+  }
+  (function(){ document.addEventListener('click', function(e){ var r=e.target.closest('[data-mkt][data-disp]'); if(r) pickInstrument(r.dataset.mkt, r.dataset.disp); }); })();
+  refreshTops(); setInterval(refreshTops,60000);
 
   /* ============ BRANCHEMENT PAPER-TRADING RÉEL (remplace la simulation) ============ */
   let PAPER={balance:5000,available:5000,reserved:0,sessions:[],pending:[],positions:[]};
