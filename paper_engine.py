@@ -59,6 +59,9 @@ class PaperPosition:
     partial_done: bool = False      # prise partielle déjà faite ?
     hwm: float = 0.0                # plus haut atteint depuis l'entrée (buy)
     lwm: float = 0.0                # plus bas atteint depuis l'entrée (sell)
+    broker_trade_id: str = None     # id du trade chez le courtier (Apprentissage/Réel)
+    venue: str = "interne"          # lieu d'exécution : interne | OANDA practice | ...
+    broker_unreal: float = None     # P&L latent rapporté par le courtier (si dispo)
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
     @property
@@ -116,6 +119,7 @@ class PaperEngine:
         self._trades_today = 0          # plafond de trades/jour
         self._last_loss_time = {}       # session_id -> datetime de la dernière perte
         self._last_entry_time = {}      # pair -> datetime de la dernière entrée
+        self._broker_nav = {}           # venue -> NAV rapporté par le courtier (Apprentissage/Réel)
 
     # -- sessions -----------------------------------------------------------
     def open_session(self, budget, accept_min=None, accept_max=None,
@@ -196,6 +200,7 @@ class PaperEngine:
         for _pair, _m in (market or {}).items():
             if _m.get("price") is not None:
                 self.last_price[_pair] = float(_m["price"])
+        self._reconcile_broker(now)
 
         if self.running and not self.daily_halted:
             _maxtd = self._P2.get("max_trades_per_day", 12)
@@ -387,6 +392,7 @@ class PaperEngine:
                 self._trades_today += 1
                 self._last_entry_time[pos.pair] = now
                 self._log("position", "Position ouverte %s %s" % (pos.pair, pos.side))
+                self._route_execution(pos)
 
     def _manage_exit(self, pos, price, now):
         """Phase 1 — pilotage de sortie en multiples de R (break-even, prise
@@ -399,12 +405,17 @@ class PaperEngine:
         else:
             pos.lwm = min(pos.lwm or pos.entry_price, price)
         R = pos.realized_R(price)
-        # a) prise partielle à +partial_trigger_R
+        broker = self._is_broker(pos)
+        # a) prise partielle à +partial_trigger_R (poussée au courtier si broker-backed)
         if (not pos.partial_done and P.get("partial_frac", 0) > 0
                 and R >= P.get("partial_trigger_R", 1.0) and abs(pos.units) > 0):
+            qty = abs(pos.units * max(0.0, min(0.9, P["partial_frac"])))
             self._scale_out(pos, price, P["partial_frac"], now)
             pos.partial_done = True
+            if broker and qty > 0:
+                self._broker_partial(pos, qty)
         # b) passage à break-even à +be_trigger_R
+        old_stop = pos.stop_loss
         if not pos.be_done and R >= P.get("be_trigger_R", 1.0) and pos.r_unit > 0:
             buf = P.get("be_buffer_R", 0.0) * pos.r_unit
             pos.stop_loss = (pos.entry_price + buf) if pos.side == "buy" else (pos.entry_price - buf)
@@ -416,6 +427,9 @@ class PaperEngine:
                 pos.stop_loss = max(pos.stop_loss, pos.hwm - td)
             else:
                 pos.stop_loss = min(pos.stop_loss, pos.lwm + td)
+        # propager le nouveau stop au courtier (BE / trailing)
+        if broker and abs(pos.stop_loss - old_stop) > 1e-12:
+            self._broker_modify_stop(pos)
 
     def _scale_out(self, pos, price, frac, now):
         """Clôture une fraction de la position et la journalise (PARTIAL)."""
@@ -439,6 +453,147 @@ class PaperEngine:
         pos.units -= closed_units
         pos.initial_risk -= portion_risk
 
+    def _route_execution(self, pos):
+        """Apprentissage/Réel : place l'ordre chez le courtier (Pratique = interne).
+        Incrément 1 : on PLACE l'ordre sur OANDA practice et on enregistre le
+        trade_id ; la comptabilité reste interne (le basculement vers la vérité
+        courtier viendra une fois le round-trip live validé). Jamais bloquant."""
+        try:
+            sess = self.manager.sessions.get(pos.session_id)
+            mode = getattr(sess, "mode", "pratique") if sess else "pratique"
+            if mode == "pratique":
+                return
+            import execution
+            ex = execution.executor_for(mode, execution.asset_of(pos.pair))
+            if getattr(ex, "name", "internal") == "internal":
+                return
+            res = ex.place(pos.pair, pos.units, pos.stop_loss, pos.take_profit)
+            pos.venue = getattr(ex, "venue", "courtier")
+            if res.ok:
+                pos.broker_trade_id = res.trade_id
+                self._log("execution", "Ordre %s placé sur %s (trade %s)"
+                          % (pos.pair, pos.venue, res.trade_id or "?"))
+            elif res.blocked:
+                self._log("execution", "Ordre %s NON envoyé (%s) — %s"
+                          % (pos.pair, pos.venue, res.error or "verrou"))
+            else:
+                self._log("execution", "Échec ordre %s sur %s : %s"
+                          % (pos.pair, pos.venue, res.error or "?"))
+        except Exception as e:
+            try:
+                self._log("execution", "Routage exécution ignoré : %s" % e)
+            except Exception:
+                pass
+
+    def _reconcile_broker(self, now):
+        """Incrément 1b-α — LECTURE de la vérité courtier pour Apprentissage/Réel :
+        met à jour le P&L latent depuis le courtier, le NAV, et BOOKE les positions
+        que le courtier a clôturées de son côté (SL/TP attaché OANDA, etc.).
+        Guardé et best-effort : si le courtier ne répond pas, on ne touche à rien
+        (repli silencieux sur la compta interne). Pratique : aucun appel."""
+        try:
+            import execution
+        except Exception:
+            return
+        # regrouper les positions broker-backed par adaptateur
+        groups = {}
+        for pos in list(self.positions.values()):
+            if not getattr(pos, "broker_trade_id", None) or getattr(pos, "venue", "interne") == "interne":
+                continue
+            sess = self.manager.sessions.get(pos.session_id)
+            mode = getattr(sess, "mode", "pratique") if sess else "pratique"
+            ex = execution.executor_for(mode, execution.asset_of(pos.pair))
+            if getattr(ex, "name", "internal") == "internal":
+                continue
+            groups.setdefault(ex.name, [ex, []])[1].append(pos)
+        for name, (ex, poss) in groups.items():
+            try:
+                omap = ex.open_map()
+            except Exception:
+                continue
+            nav = None
+            try:
+                nav = ex.nav()
+            except Exception:
+                nav = None
+            if nav is not None:
+                self._broker_nav[getattr(ex, "venue", name)] = round(nav, 2)
+            for pos in poss:
+                # OANDA : clé = trade id ; Alpaca : clé = symbole normalisé (sans slash)
+                ref = (pos.broker_trade_id if str(pos.venue).startswith("OANDA")
+                       else pos.pair.replace("/", ""))
+                info = omap.get(ref)
+                if info is not None:
+                    pos.broker_unreal = info.get("unrealized")
+                else:
+                    # le courtier l'a clôturée -> on la booke avec SON PnL réalisé
+                    # (repli R au dernier prix si le courtier ne le fournit pas)
+                    price = self.last_price.get(pos.pair, pos.entry_price)
+                    bp = None
+                    try:
+                        bp = ex.trade_pnl(ref)
+                    except Exception:
+                        bp = None
+                    self._close(pos, price, "BROKER", now, pnl=bp)
+
+    def _is_broker(self, pos):
+        return (bool(getattr(pos, "broker_trade_id", None))
+                and getattr(pos, "venue", "interne") != "interne")
+
+    def _executor_of(self, pos):
+        try:
+            import execution
+            sess = self.manager.sessions.get(pos.session_id)
+            mode = getattr(sess, "mode", "pratique") if sess else "pratique"
+            ex = execution.executor_for(mode, execution.asset_of(pos.pair))
+            return ex if getattr(ex, "name", "internal") != "internal" else None
+        except Exception:
+            return None
+
+    def _broker_ref(self, pos):
+        return pos.broker_trade_id if str(pos.venue).startswith("OANDA") else pos.pair
+
+    def _broker_modify_stop(self, pos):
+        ex = self._executor_of(pos)
+        if not ex:
+            return
+        try:
+            ex.modify_stop(self._broker_ref(pos), pos.stop_loss, instrument=pos.pair)
+            self._log("execution", "Stop courtier %s -> %.5f" % (pos.pair, pos.stop_loss))
+        except Exception as e:
+            self._log("execution", "MAJ stop courtier ignorée : %s" % e)
+
+    def _broker_partial(self, pos, qty):
+        ex = self._executor_of(pos)
+        if not ex:
+            return
+        try:
+            ex.partial_close(self._broker_ref(pos), qty, side=pos.side, instrument=pos.pair)
+            self._log("execution", "Prise partielle courtier %s (%s u)" % (pos.pair, qty))
+        except Exception as e:
+            self._log("execution", "Partielle courtier ignorée : %s" % e)
+
+    def _close_broker(self, pos):
+        """Aplatit la position chez le courtier quand le moteur la ferme.
+        Indispensable pour Alpaca (pas de SL/TP attaché). Best-effort, jamais bloquant.
+        OANDA : si déjà clôturée par son SL/TP attaché, l'appel échoue -> absorbé."""
+        if not getattr(pos, "broker_trade_id", None) or getattr(pos, "venue", "interne") == "interne":
+            return
+        try:
+            sess = self.manager.sessions.get(pos.session_id)
+            mode = getattr(sess, "mode", "pratique") if sess else "pratique"
+            import execution
+            ex = execution.executor_for(mode, execution.asset_of(pos.pair))
+            if getattr(ex, "name", "internal") == "internal":
+                return
+            ex.close(pos.broker_trade_id, pos.pair)
+            self._log("execution", "Clôture courtier %s (%s)" % (pos.pair, pos.venue))
+        except Exception as e:
+            try:
+                self._log("execution", "Clôture courtier ignorée : %s" % e)
+            except Exception:
+                pass
+
     def _update_positions(self, market, now):
         for pos in list(self.positions.values()):
             m = market.get(pos.pair)
@@ -447,16 +602,19 @@ class PaperEngine:
             price = float(m["price"])
             self._manage_exit(pos, price, now)
             reason, exit_price = None, price
-            if pos.side == "buy":
-                if price <= pos.stop_loss:
-                    reason, exit_price = "STOP", pos.stop_loss
-                elif price >= pos.take_profit:
-                    reason, exit_price = "TP", pos.take_profit
-            else:
-                if price >= pos.stop_loss:
-                    reason, exit_price = "STOP", pos.stop_loss
-                elif price <= pos.take_profit:
-                    reason, exit_price = "TP", pos.take_profit
+            # broker-backed : le courtier détient le SL/TP -> on NE ferme PAS en interne
+            # (la clôture est constatée par _reconcile_broker). On garde la sortie TEMPS.
+            if not self._is_broker(pos):
+                if pos.side == "buy":
+                    if price <= pos.stop_loss:
+                        reason, exit_price = "STOP", pos.stop_loss
+                    elif price >= pos.take_profit:
+                        reason, exit_price = "TP", pos.take_profit
+                else:
+                    if price >= pos.stop_loss:
+                        reason, exit_price = "STOP", pos.stop_loss
+                    elif price <= pos.take_profit:
+                        reason, exit_price = "TP", pos.take_profit
             if reason is None and self._expired(pos, now):
                 reason, exit_price = "TIME", price
             if reason:
@@ -469,11 +627,13 @@ class PaperEngine:
             return False
         return (now - t0).total_seconds() >= pos.max_hold_min * 60
 
-    def _close(self, pos, exit_price, reason, now):
-        # R calculé sur le prix de sortie réel : un STOP au niveau d'origine donne
-        # bien -1R, mais un stop passé à break-even ou trailé peut être >= 0.
-        R = pos.realized_R(exit_price)
-        pnl = round(pos.initial_risk * R, 2)
+    def _close(self, pos, exit_price, reason, now, pnl=None):
+        # PnL : si le courtier fournit le PnL réalisé (Apprentissage/Réel), on l'utilise ;
+        # sinon repli sur le R interne (un STOP d'origine = -1R, un stop trailé peut être >= 0).
+        if pnl is None:
+            pnl = round(pos.initial_risk * pos.realized_R(exit_price), 2)
+        else:
+            pnl = round(pnl, 2)
         self.journal.record(Trade(
             pair=pos.pair, side=pos.side, units=pos.units,
             entry_price=pos.entry_price, stop_loss=pos.stop_loss,
@@ -495,9 +655,13 @@ class PaperEngine:
             self._win_streak += 1
             self._loss_streak = 0
         self._log("trade", "%s %s · %+.2f$" % (pos.pair, reason, pnl))
+        self._close_broker(pos)
         self.positions.pop(pos.id, None)
 
     def _pos_unreal(self, pos):
+        bu = getattr(pos, "broker_unreal", None)
+        if bu is not None:                       # vérité courtier (Apprentissage/Réel)
+            return round(bu, 2)
         price = self.last_price.get(pos.pair)
         if price is None:
             return 0.0
@@ -514,6 +678,7 @@ class PaperEngine:
             "daily_halted": self.daily_halted,
             "day_pnl": round(self._day_pnl, 2),
             "open_risk": round(self._open_risk(), 2),
+            "broker_nav": self._broker_nav,
             "last_tick": self.last_tick,
             "sessions": [{
                 "id": s.id, "allocated": s.allocated, "equity": s.equity,
