@@ -150,9 +150,16 @@ def backtest_impact(diff, instruments, fetch=None):
     def st(tr):
         n = len(tr)
         if not n:
-            return {"n": 0, "exp": 0.0, "tot": 0.0}
-        return {"n": n, "exp": round(sum(t["R"] for t in tr) / n, 3),
-                "tot": round(sum(t["R"] for t in tr), 1)}
+            return {"n": 0, "wins": 0, "losses": 0, "win_rate": 0,
+                    "exp": 0.0, "tot": 0.0, "avg_win": 0.0, "avg_loss": 0.0}
+        wins = [t["R"] for t in tr if t["R"] > 0]
+        losses = [t["R"] for t in tr if t["R"] <= 0]
+        tot = sum(t["R"] for t in tr)
+        return {"n": n, "wins": len(wins), "losses": len(losses),
+                "win_rate": round(100.0 * len(wins) / n),
+                "exp": round(tot / n, 3), "tot": round(tot, 1),
+                "avg_win": round(sum(wins) / len(wins), 2) if wins else 0.0,
+                "avg_loss": round(sum(losses) / len(losses), 2) if losses else 0.0}
 
     out = []
     for inst in instruments:

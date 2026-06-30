@@ -1408,6 +1408,26 @@
   }); })();
   loadStrategy(); setInterval(loadStrategy,30000);
   function ingDiff(diff){ var out=[]; ['PHASE1','PHASE2'].forEach(function(sec){ var o=(diff||{})[sec]||{}; Object.keys(o).forEach(function(k){ out.push(sec.replace('PHASE','P')+'.'+k+'='+o[k]); }); }); return out; }
+  function ingBar(done,total,sub){ var pct=total?Math.round(100*done/total):0;
+    return '<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:7px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--blue);transition:width .3s"></div></div><span class="cap" style="min-width:120px;text-align:right">'+done+'/'+total+' · '+sub+'</span></div>'; }
+  function ingRow(l,a,p,d){ return '<tr><td class="cap" style="padding:1px 0">'+l+'</td><td style="text-align:right">'+a+'</td><td style="text-align:right">'+p+'</td><td style="text-align:right">'+d+'</td></tr>'; }
+  function ingReport(rows,note){ if(!rows.length)return '<div class="cap">Pas de données (marché/données indisponibles).</div>';
+    var html='', sumA=0,sumP=0,cnt=0;
+    rows.forEach(function(x){ var a=x.avant,p=x.apres; var dE=p.exp-a.exp,dT=p.tot-a.tot,dW=p.win_rate-a.win_rate; var f=dE>0?'✅':(dE<0?'❌':'•'); sumA+=a.exp;sumP+=p.exp;cnt++;
+      html+='<div class="msg" style="flex-direction:column;align-items:stretch;gap:3px;margin-top:8px"><b>'+x.instrument+' '+f+'</b>'
+        +'<table style="width:100%;font-size:12px;border-collapse:collapse">'
+        +'<tr class="cap"><td style="padding:1px 0"></td><td style="text-align:right">avant</td><td style="text-align:right">après</td><td style="text-align:right">Δ</td></tr>'
+        +ingRow('trades',a.n,p.n,'')
+        +ingRow('win-rate',a.win_rate+'%',p.win_rate+'%',(dW>=0?'+':'')+dW+' pts')
+        +ingRow('espérance',a.exp+' R',p.exp+' R','<b>'+(dE>=0?'+':'')+dE.toFixed(3)+' R '+f+'</b>')
+        +ingRow('total',a.tot+' R',p.tot+' R',(dT>=0?'+':'')+dT.toFixed(1)+' R')
+        +ingRow('gain moy.','+'+a.avg_win+' R','+'+p.avg_win+' R','')
+        +ingRow('perte moy.',a.avg_loss+' R',p.avg_loss+' R','')
+        +'</table></div>'; });
+    var dAvg=cnt?((sumP-sumA)/cnt):0; var verdict=dAvg>0?('✅ proposition rentable (+'+dAvg.toFixed(3)+' R/trade en moyenne)'):(dAvg<0?('❌ pas mieux ('+dAvg.toFixed(3)+' R/trade)'):'• neutre');
+    html+='<div class="msg" style="margin-top:8px;background:var(--blue-soft)"><b>Résumé : '+verdict+'</b></div>';
+    html+='<div class="cap" style="margin-top:6px">'+(note||'')+' · 1R = le risque initial du trade ; espérance > 0 = rentable.</div>';
+    return html; }
   function ingRender(p){ var el=$('ingOut'); if(!el)return;
     if(!p){ el.innerHTML='<div class="cap">Aucune proposition. Clique « Analyser ma config » pour en générer une.</div>'; return; }
     var keys=ingDiff(p.diff); var SB={proposee:'var(--amber)',validee:'var(--green)',rejetee:'var(--coral)',appliquee:'var(--blue)'};
@@ -1437,9 +1457,14 @@
   };
   (function(){ var el=$('ingOut'); if(!el)return; el.addEventListener('click', async function(e){
     var b=e.target.closest('[data-ing]'); if(!b)return; var act=b.dataset.ing, id=b.dataset.id; var h=await authHeaders(); h['Content-Type']='application/json';
-    if(act==='backtest'){ var bt=$('ingBt'); if(bt)bt.textContent='Backtest en cours…';
-      var r=await fetch('/api/ingenieur/backtest',{method:'POST',headers:h,body:JSON.stringify({id:id})}).then(function(x){return x.json();}).catch(function(){return{};});
-      if(bt){ var rows=(r&&r.impact)||[]; bt.innerHTML='<b>Backtest avant/après :</b><br>'+(rows.length?rows.map(function(x){ var be='✅';if(x.apres.exp<=x.avant.exp)be='❌'; return x.instrument+' : '+x.avant.exp+' R → '+x.apres.exp+' R '+be+' ('+x.apres.n+' trades)'; }).join('<br>'):'pas de données')+'<br><span class="cap">'+(r.note||'')+'</span>'; }
+    if(act==='backtest'){ var bt=$('ingBt'); if(!bt)return;
+      var insts=['BTC/USD','ETH/USD','EUR_USD']; var results=[], note='', t0=Date.now();
+      for(var i=0;i<insts.length;i++){
+        var elapsed=(Date.now()-t0)/1000; var per=i>0?elapsed/i:3.0;
+        bt.innerHTML=ingBar(i,insts.length,'~'+Math.max(1,Math.round(per*(insts.length-i)))+'s restantes')+'<div class="cap" style="margin-top:6px">backtest '+insts[i]+'…</div>';
+        try{ var rr=await fetch('/api/ingenieur/backtest',{method:'POST',headers:h,body:JSON.stringify({id:id,instruments:[insts[i]]})}).then(function(x){return x.json();}); if(rr){ note=rr.note||note; if(rr.impact&&rr.impact[0])results.push(rr.impact[0]); } }catch(e){}
+      }
+      bt.innerHTML=ingBar(insts.length,insts.length,'terminé en '+Math.round((Date.now()-t0)/1000)+'s')+ingReport(results,note);
       return; }
     if(act==='rejeter'||act==='valider'){ await fetch('/api/ingenieur/review',{method:'POST',headers:h,body:JSON.stringify({id:id,decision:act})}).catch(function(){}); ingLoad(); return; }
     if(act==='appliquer'){ if(!(await confirmModal('Appliquer ce diff à la stratégie active ? (versionné, rollback possible)','Appliquer')))return;
