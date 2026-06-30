@@ -58,6 +58,7 @@ HARD_LIMITS = {
     # Ratio minimum gain potentiel / perte potentielle pour accepter un trade.
     "min_reward_risk_ratio": 1.5,
 }
+
 # --- Phase 1 : qualité de décision (pratiques de traders aguerris) ----------
 # Tous ces réglages sont centralisés ici pour calibration/backtest ultérieurs.
 PHASE1 = {
@@ -80,23 +81,22 @@ PHASE1 = {
     # Garde de session (Niveau 3) : pas d'auto-validation forex hors-session.
     "session_guard": True,
 }
+
 # --- Phase 2 : survie & portefeuille (gestion globale du risque) ------------
 PHASE2 = {
     # Somme des risques ouverts (toutes positions) <= x% du SOLDE TOTAL.
-    "max_portfolio_heat_pct": 6.0,
+    "max_portfolio_heat_pct": 4.0,
     # Exposition nette par devise <= x% du solde (ne pas empiler des paris corrélés).
-    "max_ccy_heat_pct": 4.0,
+    "max_ccy_heat_pct": 2.5,
     # De-risking anti-martingale : on réduit la taille après des pertes
     # consécutives, on restaure après un gain. Multiplicateur = max(plancher,
     # 1 - pas * pertes_consécutives).
     "derisk_floor": 0.4, "derisk_step": 0.25,
     # Anti-overtrading.
-    "cooldown_min_after_loss": 30,        # pause par session après une perte
-    "max_trades_per_day": 12,             # plafond global de trades/jour
+    "cooldown_min_after_loss": 60,        # pause par session après une perte
+    "max_trades_per_day": 8,              # plafond global de trades/jour
     "min_minutes_between_same_pair": 15,  # espacement des entrées sur une même paire
 }
-
-
 
 # --- Comptes OANDA (practice / live) ---------------------------------------
 # Le compte "practice" reprend les variables existantes (aucun changement requis
@@ -128,10 +128,15 @@ FOREX_PRIORITY = [
 # --- Alpaca (données historiques crypto, LECTURE seule) --------------------
 ALPACA_PAPER_KEY = os.environ.get("ALPACA_PAPER_KEY", "")
 ALPACA_PAPER_SECRET = os.environ.get("ALPACA_PAPER_SECRET", "")
+
 # --- Copilote IA (OpenRouter / Grok) — HORS chemin d'exécution ---------------
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "x-ai/grok-2-1212")
-
+# Modèles par rôle (le copilote analyse en profondeur ; le chasseur va vite/pas cher)
+OPENROUTER_MODEL_ANALYSTE = os.environ.get("OPENROUTER_MODEL_ANALYSTE", "x-ai/grok-4.3")
+OPENROUTER_MODEL_CHASSEUR = os.environ.get("OPENROUTER_MODEL_CHASSEUR", "x-ai/grok-4.1-fast")
+# Plafond d'appels Grok par jour (coût) — le chasseur se met en pause au-delà.
+GROK_DAILY_CALL_CAP = int(os.environ.get("GROK_DAILY_CALL_CAP", "500"))
 # --- Supabase (écriture serveur du pipeline d'historique) ------------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://qdhnnsipwnogecrptxfk.supabase.co")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")

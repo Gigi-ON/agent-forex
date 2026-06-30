@@ -81,6 +81,17 @@ class SignalEngine:
         return "up" if ef[-1] > es[-1] else "down"
 
     def evaluate(self, instrument: str, candles: list) -> Signal:
+        try:
+            import strategy as _S
+            _p1 = _S.P1()
+            self.adx_min = _p1.get("adx_min", self.adx_min)
+            self.pullback_atr_mult = _p1.get("pullback_atr_mult", self.pullback_atr_mult)
+            self.swing_lookback = _p1.get("swing_lookback", self.swing_lookback)
+            self.swing_buffer_atr = _p1.get("swing_buffer_atr", self.swing_buffer_atr)
+            self.stop_min_atr = _p1.get("stop_min_atr", self.stop_min_atr)
+            self.stop_max_atr = _p1.get("stop_max_atr", self.stop_max_atr)
+        except Exception:
+            pass
         notes = []
         closes = [c["c"] for c in candles]
         need = max(self.ema_slow, 2 * self.adx_period) + self.rsi_period + 2

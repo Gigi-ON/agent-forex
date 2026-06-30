@@ -80,6 +80,13 @@ class Supervisor:
         self.modulator = modulator or RiskModulator()
         self.pending = {}            # id -> Pending
         self.last_look = {}          # session_id -> dernière lecture du moteur (visibilité)
+        self._grok_engine = None     # chasseur Grok (lazy)
+
+    def _grok(self):
+        if self._grok_engine is None:
+            from grok_signals import GrokSignalEngine
+            self._grok_engine = GrokSignalEngine()
+        return self._grok_engine
 
     # -- proposer ------------------------------------------------------------
     def propose(self, session, pair, candles, news_items,
@@ -87,7 +94,26 @@ class Supervisor:
                 portfolio=None, risk_scale=1.0):
         now = now or datetime.now(timezone.utc)
 
-        sig = self.engine.evaluate(pair, candles)
+        # ROUTAGE TRADER : Déterministe | Grok | Hybride (confluence). Grok jamais en Réel.
+        trader = getattr(session, "trader", "deterministe")
+        if trader in ("grok", "hybride") and getattr(session, "mode", "pratique") == "reel":
+            trader = "deterministe"   # GATE paper-only : le LLM ne pilote jamais l'argent réel
+        if trader == "grok":
+            sig = self._grok().evaluate(pair, candles)
+        elif trader == "hybride":
+            sig = self.engine.evaluate(pair, candles)        # déterministe gate (peu coûteux)
+            if sig.proposal:
+                g = self._grok().evaluate(pair, candles)     # Grok consulté seulement si setup
+                if g.proposal and g.proposal.side == sig.proposal.side:
+                    sig.confidence = round(min(1.0, sig.confidence + 0.15), 2)
+                    sig.notes.append("Grok confirme (confluence) +0.15")
+                elif g.proposal and g.proposal.side != sig.proposal.side:
+                    sig.confidence = round(max(0.0, sig.confidence - 0.15), 2)
+                    sig.notes.append("Grok en désaccord -0.15")
+                else:
+                    sig.notes.append("Grok : pas de confirmation")
+        else:
+            sig = self.engine.evaluate(pair, candles)
         self.last_look[session.id] = {
             "pair": pair,
             "note": (sig.notes[-1] if sig.notes else ""),
@@ -104,7 +130,8 @@ class Supervisor:
         # risque (stop serré), l'edge disparaît -> on s'abstient.
         if spread is not None and spread > 0:
             stop_dist = abs(sig.proposal.entry_price - sig.proposal.stop_loss)
-            maxf = _P1.get("max_spread_frac", 0.30)
+            import strategy as _S
+            maxf = _S.P1().get("max_spread_frac", 0.30)
             if stop_dist > 0 and spread > maxf * stop_dist:
                 self.last_look[session.id]["note"] = (
                     "Spread %.5f > %d%% du stop : trade ignoré." % (spread, int(maxf * 100)))
@@ -137,7 +164,8 @@ class Supervisor:
             sgn = 1.0 if sig.proposal.side == "buy" else -1.0
             r = sized.risk_amount_account_ccy
             exp = pf["ccy_exposure"]
-            cap = pf["equity"] * _P2.get("max_ccy_heat_pct", 4.0) / 100.0
+            import strategy as _S
+            cap = pf["equity"] * _S.P2().get("max_ccy_heat_pct", 4.0) / 100.0
             legs = [(base_c, sgn * r), (quote_c, -sgn * r)]
             for ccy, delta in legs:
                 if ccy and abs(exp.get(ccy, 0.0) + delta) > cap:
@@ -189,7 +217,8 @@ class Supervisor:
         if risk_pct > cap:
             return False, "⏳ Risque %.1f%% > plafond %.1f%% — à valider" % (risk_pct, cap)
         # GARDE DE SESSION (Niveau 3) : forex hors séance -> pas d'auto (crypto 24/7 OK)
-        if _P1.get("session_guard", True) and "/" not in p.pair:
+        import strategy as _S
+        if _S.P1().get("session_guard", True) and "/" not in p.pair:
             try:
                 import sessions_clock as _sc
                 if _sc.score_pair(p.pair, _sc.open_sessions(_sc._now_utc())) <= 0:

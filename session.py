@@ -53,6 +53,7 @@ class Session:
     accept_max: float = None             # min<=confiance<=max -> auto ; sinon attente->inaction
     instrument: str = None               # nom OANDA (ex EUR_USD) ; None = config.INSTRUMENTS
     mode: str = "pratique"               # pratique (sim interne) | apprentissage (paper courtier) | reel
+    trader: str = "deterministe"         # deterministe | grok | hybride (qui génère les signaux)
     paused: bool = False                 # pause par session : gèle les nouvelles entrées
     started: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])

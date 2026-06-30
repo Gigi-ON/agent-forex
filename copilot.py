@@ -56,7 +56,22 @@ def build_user_prompt(journal, learning, settings, question=None):
     return "État du bot (données réelles) :\n" + blob + "\n\nTâche : " + task
 
 
+def comment_confidence(context, session=None):
+    """Une phrase courte justifiant la bande suggérée (best-effort, None si pas de clé)."""
+    import config
+    if not getattr(config, "OPENROUTER_API_KEY", ""):
+        return None
+    msgs = [{"role": "system", "content": "Tu es analyste trading. Réponds en UNE phrase courte "
+             "(<=140 caractères), en français, sans préambule ni guillemets."},
+            {"role": "user", "content": "Bande de confiance d'auto-validation suggérée. Données : "
+             + json.dumps(context, ensure_ascii=False)[:1500] + ". Justifie en une phrase."}]
+    r = ask(msgs, model=getattr(config, "OPENROUTER_MODEL_ANALYSTE", None), session=session)
+    return r.get("answer") if isinstance(r, dict) else None
+
+
 def analyze(journal, learning, settings, question=None, session=None, model=None):
+    import config
+    model = model or getattr(config, "OPENROUTER_MODEL_ANALYSTE", None)
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": build_user_prompt(journal, learning, settings, question)}]
     return ask(msgs, model=model, session=session)

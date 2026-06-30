@@ -125,7 +125,7 @@ class PaperEngine:
     def open_session(self, budget, accept_min=None, accept_max=None,
                      profile=Profile.RESERVE, risk_level="reserve",
                      duration_min=240, tutelle=Tutelle.MANUEL, instrument=None,
-                     mode="pratique"):
+                     mode="pratique", trader="deterministe"):
         s = self.manager.open_session(allocated=budget, profile=profile,
                                       tutelle=tutelle, duration_min=duration_min,
                                       risk_level=risk_level)
@@ -133,6 +133,7 @@ class PaperEngine:
         s.accept_max = accept_max
         s.instrument = instrument
         s.mode = mode
+        s.trader = trader
         self._log("session", "Session ouverte #%s · %d$%s" % (s.id, int(budget), (" · " + instrument) if instrument else ""))
         return s
 
@@ -203,9 +204,11 @@ class PaperEngine:
         self._reconcile_broker(now)
 
         if self.running and not self.daily_halted:
-            _maxtd = self._P2.get("max_trades_per_day", 12)
-            _cool = self._P2.get("cooldown_min_after_loss", 0) * 60
-            _space = self._P2.get("min_minutes_between_same_pair", 0) * 60
+            import strategy as _S
+            _p2 = _S.P2()
+            _maxtd = _p2.get("max_trades_per_day", 12)
+            _cool = _p2.get("cooldown_min_after_loss", 0) * 60
+            _space = _p2.get("min_minutes_between_same_pair", 0) * 60
             for session in list(self.manager.active):
                 if not self._can_open_more():
                     break
@@ -286,8 +289,10 @@ class PaperEngine:
 
     def _risk_scale(self):
         """De-risking anti-martingale : <1 après des pertes consécutives."""
-        return max(self._P2.get("derisk_floor", 0.4),
-                   1.0 - self._P2.get("derisk_step", 0.25) * self._loss_streak)
+        import strategy as _S
+        _p2 = _S.P2()
+        return max(_p2.get("derisk_floor", 0.4),
+                   1.0 - _p2.get("derisk_step", 0.25) * self._loss_streak)
 
     def _open_risk(self):
         return sum(p.initial_risk for p in self.positions.values())
@@ -398,7 +403,8 @@ class PaperEngine:
         """Phase 1 — pilotage de sortie en multiples de R (break-even, prise
         partielle, trailing). Ne ferme rien : ajuste le stop / réduit la taille.
         La fermeture reste gérée par le contrôle SL/TP qui suit."""
-        P = self._P1
+        import strategy as _S
+        P = _S.P1()
         # suivi des extrêmes depuis l'entrée
         if pos.side == "buy":
             pos.hwm = max(pos.hwm or pos.entry_price, price)
@@ -689,6 +695,7 @@ class PaperEngine:
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
                 "instrument": getattr(s, "instrument", None),
                 "mode": getattr(s, "mode", "pratique"),
+                "trader": getattr(s, "trader", "deterministe"),
                 "paused": getattr(s, "paused", False),
                 "last_look": self.supervisor.last_look.get(s.id),
                 "state": s.state.value if hasattr(s.state, "value") else s.state,
@@ -736,6 +743,7 @@ class PaperEngine:
                 "accept_min": s.accept_min, "accept_max": s.accept_max,
                 "instrument": s.instrument, "paused": getattr(s, "paused", False),
                 "mode": getattr(s, "mode", "pratique"),
+                "trader": getattr(s, "trader", "deterministe"),
             } for s in self.manager.sessions.values()],
             "positions": [dict(vars(pos)) for pos in self.positions.values()],
             "running": self.running,
@@ -769,6 +777,7 @@ class PaperEngine:
             s.accept_max = sd.get("accept_max")
             s.instrument = sd.get("instrument")
             s.mode = sd.get("mode", "pratique")
+            s.trader = sd.get("trader", "deterministe")
             s.paused = sd.get("paused", False)
             self.manager.sessions[s.id] = s
         self.positions = {}

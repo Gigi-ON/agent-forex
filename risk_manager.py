@@ -188,7 +188,8 @@ class RiskManager:
         # dépasser un % du solde total. On réduit le trade pour rentrer dans le
         # budget de risque restant ; s'il n'en reste plus, on refuse.
         if portfolio_equity > 0:
-            heat_cap = portfolio_equity * _P2.get("max_portfolio_heat_pct", 6.0) / 100.0
+            import strategy as _S
+            heat_cap = portfolio_equity * _S.P2().get("max_portfolio_heat_pct", 6.0) / 100.0
             remaining = heat_cap - max(0.0, portfolio_open_risk)
             if remaining <= 0:
                 return SizingResult(False, 0, 0, 0, rr,

@@ -690,6 +690,38 @@ def instruments(asset: str = "forex"):
         return {"asset": asset, "instruments": fb, "fallback": True, "detail": str(e)}
 
 
+@app.get("/api/suggest-confidence")
+def suggest_confidence(instrument: str = "", profile: str = "doux", market: str = "forex"):
+    """Bande min-max suggérée : seuil rentable de la calibration + ajustement profil
+    + commentaire Grok (best-effort, repli déterministe). Le user reste libre de l'ajuster."""
+    try:
+        cal = learning()
+    except Exception:
+        cal = {}
+    enough = bool(isinstance(cal, dict) and cal.get("enough_data"))
+    rec = cal.get("recommended_min_confidence") if isinstance(cal, dict) else None
+    try:
+        base = float(rec) if (enough and rec) else 0.60
+    except Exception:
+        base = 0.60
+    adj = {"reserve": 0.05, "doux": 0.0, "agressif": -0.05}.get(profile, 0.0)
+    mn = round(max(0.55, min(0.85, base + adj)), 2)
+    mx = 0.92
+    comment = None
+    try:
+        import copilot
+        comment = copilot.comment_confidence({
+            "instrument": instrument, "profil": profile, "marche": market,
+            "bande_suggeree": [mn, mx], "calibration": cal.get("bands") if isinstance(cal, dict) else None,
+            "assez_de_donnees": enough})
+    except Exception:
+        comment = None
+    if not comment:
+        src = "calibration" if enough else "défaut (peu de trades)"
+        comment = "Seuil %d%% — %s · profil %s." % (int(mn * 100), src, profile)
+    return {"min": mn, "max": mx, "comment": comment, "enough_data": enough}
+
+
 @app.get("/api/top-crypto")
 def top_crypto():
     """Top 10 crypto à cibler : volume 24 h + market cap + momentum (CoinGecko),
@@ -800,9 +832,34 @@ def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
                 risk_level=body.get("risk_level", "reserve"),
                 duration_min=int(body.get("duration_min", 240)),
                 instrument=inst,
-                mode=body.get("mode", "pratique"))
+                mode=body.get("mode", "pratique"),
+                trader=body.get("trader", "deterministe"))
             _save_paper()
         return {"ok": True, "session_id": s.id, "instrument": inst}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/strategy")
+def strategy_state():
+    """État de la stratégie runtime : version courante, réglages effectifs vs défauts,
+    overrides actifs, et historique des versions (pour revue / rollback)."""
+    try:
+        import strategy
+        cur = strategy.current()
+        cur["versions"] = list(reversed(strategy.versions()))[:20]
+        return cur
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/strategy/rollback")
+def strategy_rollback(body: dict = Body(...), user=Depends(require_user)):
+    """Rollback vers une version sauvegardée (crée une nouvelle version 'rollback')."""
+    try:
+        import strategy
+        v = int(body.get("version"))
+        return strategy.rollback(v)
     except Exception as e:
         return {"error": str(e)}
 

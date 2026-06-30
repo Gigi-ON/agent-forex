@@ -344,6 +344,8 @@
   .badge.v-calme{background:var(--amber-soft);color:var(--amber)}
   .badge.v-ferme{background:var(--coral-soft);color:var(--coral)}
   .tvopt-hot{font-weight:700}
+  .wizdot{flex:1;height:4px;border-radius:2px;background:var(--line)}
+  .wizdot.on{background:var(--blue)}
   /* Cartes de session (Lots A+B) */
   .sess-card{background:#1E2A36;border:1px solid rgba(255,255,255,.10);border-radius:13px;overflow:hidden;margin-bottom:10px}
   .sess-card.is-stop{opacity:.6} .sess-card.is-pause{opacity:.82}
@@ -883,15 +885,40 @@
         <div class="card"><h3 id="tvChartTitle">—</h3>
           <div id="tvBig" class="tvpx" style="font-size:26px;margin:8px 0">—</div>
           <div id="tvMetrics" class="cap">Sélectionnez un instrument pour voir le signal courant.</div></div>
-        <div class="card"><h3>Lancer une session</h3>
-          <div class="cap" style="margin:3px 0 12px">Vous fixez un budget. Le bot cherche des entrées favorables et revend selon sa stratégie, stop-loss automatique.</div>
-          <div class="field"><label class="cap">Budget de session (CAD)</label><input id="tvBudget" class="fld" value="500"></div>
-          <div class="field"><label class="cap">Validation</label>
-            <div class="seg" id="tvModeSeg"><button class="on" data-m="auto">Automatique</button><button data-m="manuel">Me demander (Oui/Non)</button></div></div>
-          <div class="field" id="tvBandWrap"><label class="cap">Le bot valide seul si la confiance est entre</label>
-            <div style="display:flex;gap:8px;align-items:center;margin-top:4px"><input id="tvMin" class="fld" value="70" style="flex:1"><span class="cap">et</span><input id="tvMax" class="fld" value="90" style="flex:1"><span class="cap">%</span></div></div>
-          <button class="btn primary" id="tvLaunch" style="width:100%;justify-content:center;margin-top:8px">Lancer la session</button>
-          <div id="tvMsg" class="cap" style="margin-top:10px"></div></div>
+        <div class="card"><h3>Assistant — lancer une session</h3>
+          <div class="cap" id="wizStepLabel" style="margin:2px 0 8px">Étape 1/4 · Compte & budget</div>
+          <div style="display:flex;gap:4px;margin-bottom:12px"><div class="wizdot on"></div><div class="wizdot"></div><div class="wizdot"></div><div class="wizdot"></div></div>
+          <div class="wizstep" data-step="1">
+            <div class="field"><label class="cap">Type de trade</label>
+              <div class="seg" id="wizMode"><button class="on" data-v="pratique">Pratique</button><button data-v="apprentissage">Apprentissage</button><button data-v="reel">Réel</button></div></div>
+            <div class="cap" id="wizAvail" style="margin:-2px 0 8px">Budget disponible : …</div>
+            <div class="field"><label class="cap">Budget de ce trade (CAD)</label><input id="wizBudget" class="fld" value="500"></div>
+          </div>
+          <div class="wizstep" data-step="2" style="display:none">
+            <div class="field"><label class="cap">Marché</label>
+              <div class="seg" id="wizMarket"><button class="on" data-v="forex">Forex</button><button data-v="crypto">Crypto</button></div></div>
+            <div class="field"><label class="cap">Trader (qui cherche les trades)</label>
+              <div class="seg" id="wizTrader"><button class="on" data-v="deterministe">Déterministe</button><button data-v="grok">Grok</button><button data-v="hybride">Hybride</button></div></div>
+          </div>
+          <div class="wizstep" data-step="3" style="display:none">
+            <div class="field"><label class="cap">Paire à trader</label><select id="wizPair" class="fld"></select></div>
+            <div class="field"><label class="cap">Profil de risque</label>
+              <div class="seg" id="wizProfile"><button data-v="reserve">Réservé</button><button class="on" data-v="doux">Doux</button><button data-v="agressif">Agressif</button></div></div>
+          </div>
+          <div class="wizstep" data-step="4" style="display:none">
+            <div class="field"><label class="cap">Validation</label>
+              <div class="seg" id="wizValid"><button class="on" data-v="auto">Automatique</button><button data-v="manuel">Me demander</button></div></div>
+            <div class="field" id="wizBandWrap"><label class="cap">Confiance — le bot valide seul si entre</label>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:4px"><input id="wizMin" class="fld" value="60" style="flex:1"><span class="cap">et</span><input id="wizMax" class="fld" value="90" style="flex:1"><span class="cap">%</span></div>
+              <div class="cap" id="wizSuggest" style="margin-top:6px"></div></div>
+            <div class="msg" id="wizRecap" style="margin-top:8px;flex-direction:column;align-items:stretch;gap:3px"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn" id="wizBack" style="display:none">← Retour</button>
+            <button class="btn primary" id="wizNext" style="flex:1;justify-content:center">Suivant →</button>
+            <button class="btn primary" id="wizLaunch" style="flex:1;justify-content:center;display:none">Lancer la session</button>
+          </div>
+          <div id="wizMsg" class="cap" style="margin-top:10px"></div></div>
       </div>
     </section>
     <section class="view" id="view-signaux">
@@ -901,6 +928,11 @@
     <section class="view" id="view-risque">
       <div class="card"><h3>Gestion du risque</h3><div class="cap" style="margin:3px 0 12px">Plafonds durs, exposition courante et verrou d'exécution.</div>
         <div id="pgRisque"><div class="cap">Chargement…</div></div></div>
+      <div class="card" style="margin-top:14px"><h3>Stratégie active <span class="cap" id="stratVer" style="font-weight:600"></span></h3>
+        <div class="cap" style="margin:2px 0 8px">Réglages PHASE1/PHASE2 au runtime (modifiables sans redéploiement). L'Ingénieur les ajustera via validation 3 étapes. Historique + rollback :</div>
+        <div id="stratDiff" class="cap"></div>
+        <div id="stratVersions" style="margin-top:10px;display:flex;flex-direction:column;gap:6px"></div>
+      </div>
     </section>
     <section class="view" id="view-historique">
       <div class="card"><h3>Historique &amp; post-mortem</h3><div class="cap" style="margin:3px 0 12px">Trades clôturés et espérance en R — la vraie mesure de viabilité.</div>
@@ -1347,6 +1379,29 @@
   }
   (function(){ document.addEventListener('click', function(e){ var r=e.target.closest('[data-mkt][data-disp]'); if(r) pickInstrument(r.dataset.mkt, r.dataset.disp); }); })();
   refreshTops(); setInterval(refreshTops,60000);
+  async function loadStrategy(){
+    var d; try{ d=await API('/api/strategy'); }catch(e){ d=null; }
+    var vEl=$('stratVer'), dEl=$('stratDiff'), lEl=$('stratVersions');
+    if(!d||d.error){ if(dEl)dEl.textContent='Stratégie indisponible (API hors ligne).'; return; }
+    if(vEl) vEl.textContent='· version '+(d.version||0);
+    var ov=d.overrides||{}; var parts=[];
+    ['PHASE1','PHASE2'].forEach(function(sec){ var o=ov[sec]||{}; Object.keys(o).forEach(function(k){ parts.push(sec.replace('PHASE','P')+'.'+k+'='+o[k]); }); });
+    if(dEl) dEl.innerHTML = parts.length ? ('Overrides actifs : <b>'+parts.join(' · ')+'</b>') : 'Aucun override — réglages par défaut.';
+    var vers=d.versions||[];
+    if(lEl) lEl.innerHTML = vers.length ? vers.map(function(v){
+      var keys=[]; ['PHASE1','PHASE2'].forEach(function(sec){ var o=(v.params||{})[sec]||{}; Object.keys(o).forEach(function(k){ keys.push(k+'='+o[k]); }); });
+      return '<div class="msg"><b>v'+v.version+'</b> <span class="cap">'+(v.note||v.source||'')+'</span><span class="cap" style="flex:1;margin:0 8px;opacity:.8">'+keys.slice(0,4).join(' · ')+'</span>'
+        +'<button class="btn" data-rollback="'+v.version+'">Restaurer</button></div>';
+    }).join('') : '<div class="cap">Aucune version enregistrée.</div>';
+  }
+  (function(){ var c=$('stratVersions'); if(!c)return; c.addEventListener('click', async function(e){
+    var b=e.target.closest('[data-rollback]'); if(!b)return;
+    if(!(await confirmModal('Restaurer la stratégie à la version '+b.dataset.rollback+' ?','Restaurer')))return;
+    var h=await authHeaders(); h['Content-Type']='application/json';
+    await fetch('/api/strategy/rollback',{method:'POST',headers:h,body:JSON.stringify({version:parseInt(b.dataset.rollback,10)})}).catch(function(){});
+    loadStrategy();
+  }); })();
+  loadStrategy(); setInterval(loadStrategy,30000);
   (function(){ var b=$('copBtn'); if(!b)return;
     b.onclick=async function(){
       var out=$('copOut'); if(out)out.textContent='Analyse en cours… (quelques secondes)'; b.disabled=true;
@@ -1490,7 +1545,7 @@
   refreshPaper(); setInterval(refreshPaper, 6000); startStream();
 
   /* ============ VUE TRADING (watchlist + flash + statut marché + ticket) ============ */
-  let TVprev={}, TVsel=null, TVside="buy", TVmkt=null;
+  let TVprev={}, TVsel=null, TVside="buy", TVmkt=null, TVtrader="deterministe";
   const WATCH_FOREX=["EUR/USD","EUR/CAD"];   // vedettes (signaux live)
   const WATCH_CRYPTO=["BTC/USD","ETH/USD"];  // vedettes (cours Kraken)
   function tvList(){ return ($('tvMarket')&&$('tvMarket').value==="crypto")?WATCH_CRYPTO:WATCH_FOREX; }
@@ -1583,19 +1638,69 @@
     const w=$('tvWatch'); if(w) w.addEventListener("click",function(e){ const r=e.target.closest("[data-pair]"); if(!r)return; TVsel=r.dataset.pair; if($('tvPair'))$('tvPair').value=TVsel; tvRefreshPrices(); });
     if($('tvMarket')) $('tvMarket').onchange=async function(){ await tvPopulatePairs(); tvRenderStatus(); tvRefreshPrices(); };
     if($('tvPair')) $('tvPair').onchange=function(){ TVsel=$('tvPair').value; tvRefreshPrices(); };
-    let TVmode="auto";
-    if($('tvModeSeg')) $('tvModeSeg').onclick=function(e){ const b=e.target.closest("button"); if(!b)return; TVmode=b.dataset.m; [].forEach.call(e.currentTarget.children,function(x){x.classList.remove("on");}); b.classList.add("on"); if($('tvBandWrap')) $('tvBandWrap').style.display=(TVmode==="auto")?"":"none"; };
-    if($('tvLaunch')) $('tvLaunch').onclick=async function(){
-      const m=$('tvMarket').value;
-      const budget=parseInt($('tvBudget').value,10)||0;
-      const body={budget:budget, asset:m, instrument:TVsel, profile:"doux", risk_level:"doux", mode:(state.appMode||"pratique")};
-      if(TVmode==="auto"){ body.accept_min=Math.max(0,Math.min(1,(parseFloat($('tvMin').value)||0)/100)); body.accept_max=Math.max(0,Math.min(1,(parseFloat($('tvMax').value)||100)/100)); }
-      const h=await authHeaders();
-      const r=await fetch("/api/paper/session",{method:"POST",headers:h,body:JSON.stringify(body)}).then(function(x){return x.json();}).catch(function(e){return {error:String(e)};});
-      if(r.error){ let msg=r.error; if(r.next_open) msg+=" Réouverture "+tvFmtET(r.next_open)+" HE — dans "+tvCountdown(r.next_open)+". La crypto reste disponible."; $('tvMsg').innerHTML='<span class="dn">'+msg+'</span>'; }
-      else{ $('tvMsg').innerHTML='<span class="up">Session #'+r.session_id+" ouverte ("+money(budget)+'). Propositions dans « Bot sous tutelle ».</span>'; if(typeof refreshPaper==="function") refreshPaper(); }
-    };
-    if($('tvBandWrap'))$('tvBandWrap').style.display="";
+    (function(){
+      if(!$('wizNext'))return;
+      var WIZ={step:1,mode:'pratique',budget:500,market:'forex',trader:'deterministe',pair:null,profile:'doux',valid:'auto',min:60,max:90};
+      var LABELS=['Compte & budget','Marché & trader','Instrument & risque','Validation & confiance'];
+      function wmsg(t){ if($('wizMsg'))$('wizMsg').textContent=t||''; }
+      function seg(id,field,cb){ var el=$(id); if(!el)return; el.onclick=function(e){ var b=e.target.closest('button'); if(!b)return; [].forEach.call(el.children,function(x){x.classList.remove('on');}); b.classList.add('on'); WIZ[field]=b.dataset.v; if(cb)cb(b.dataset.v); }; }
+      seg('wizMode','mode',function(){ loadAvail(); });
+      seg('wizMarket','market'); seg('wizTrader','trader'); seg('wizProfile','profile');
+      seg('wizValid','valid',function(v){ if($('wizBandWrap'))$('wizBandWrap').style.display=(v==='auto')?'':'none'; });
+      async function loadAvail(){ var el=$('wizAvail'); if(!el)return; el.textContent='Budget disponible : …';
+        try{ var d=await API('/api/providers'); var a=(d&&d.accounts)||[];
+          function bal(k){ return a.find(function(o){return o.key===k;}); }
+          var txt='—';
+          if(WIZ.mode==='pratique'){ var p=bal('pratique'); txt=p?('pool interne · '+money(p.available)+' dispo'):'—'; }
+          else if(WIZ.mode==='apprentissage'){ var o=bal('oanda_practice'),al=bal('alpaca_paper'); txt='OANDA '+(o&&o.nav!=null?money(o.nav):'—')+' · Alpaca '+(al&&al.equity!=null?money(al.equity):'—'); }
+          else { txt='compte réel — verrouillé tant que non armé'; }
+          el.textContent='Budget disponible : '+txt;
+        }catch(e){ el.textContent='Budget disponible : (API hors ligne)'; }
+      }
+      async function loadPairs(){ var sel=$('wizPair'); if(!sel)return; var list=[];
+        try{ var d=await API('/api/instruments?asset='+WIZ.market); list=(d&&d.instruments)||[]; }catch(e){}
+        if(!list.length) list=(WIZ.market==='crypto'?['BTC/USD','ETH/USD']:['EUR/USD','GBP/USD']);
+        sel.innerHTML=list.map(function(x){return '<option>'+x+'</option>';}).join(''); WIZ.pair=sel.value;
+        sel.onchange=function(){ WIZ.pair=sel.value; };
+      }
+      async function loadSuggest(){ var el=$('wizSuggest'); if(el)el.textContent='💡 calcul…';
+        try{ var d=await API('/api/suggest-confidence?instrument='+encodeURIComponent(WIZ.pair||'')+'&profile='+WIZ.profile+'&market='+WIZ.market);
+          if(d&&!d.error){ if($('wizMin'))$('wizMin').value=Math.round(d.min*100); if($('wizMax'))$('wizMax').value=Math.round(d.max*100); WIZ.min=Math.round(d.min*100); WIZ.max=Math.round(d.max*100); if(el)el.textContent='💡 '+(d.comment||''); }
+          else if(el) el.textContent='💡 suggestion indisponible';
+        }catch(e){ if(el)el.textContent='💡 suggestion indisponible'; }
+      }
+      function recap(){ var el=$('wizRecap'); if(!el)return;
+        var M={pratique:'Pratique',apprentissage:'Apprentissage',reel:'Réel'};
+        el.innerHTML='<b>Récapitulatif</b><span class="cap">'+M[WIZ.mode]+' · '+money(WIZ.budget)+'</span>'
+          +'<span class="cap">'+(WIZ.market==='crypto'?'Crypto':'Forex')+' · '+WIZ.pair+' · trader '+WIZ.trader+'</span>'
+          +'<span class="cap">profil '+WIZ.profile+' · '+(WIZ.valid==='auto'?('auto '+WIZ.min+'–'+WIZ.max+'%'):'manuel')+'</span>';
+      }
+      function show(){ for(var i=1;i<=4;i++){ var st=document.querySelector('.wizstep[data-step="'+i+'"]'); if(st)st.style.display=(i===WIZ.step?'':'none'); }
+        var dots=document.querySelectorAll('.wizdot'); [].forEach.call(dots,function(d,i){ if(i<WIZ.step)d.classList.add('on'); else d.classList.remove('on'); });
+        if($('wizStepLabel'))$('wizStepLabel').textContent='Étape '+WIZ.step+'/4 · '+LABELS[WIZ.step-1];
+        if($('wizBack'))$('wizBack').style.display=(WIZ.step>1?'':'none');
+        if($('wizNext'))$('wizNext').style.display=(WIZ.step<4?'':'none');
+        if($('wizLaunch'))$('wizLaunch').style.display=(WIZ.step===4?'':'none');
+      }
+      function validStep(){ WIZ.budget=parseInt(($('wizBudget')||{}).value,10)||0;
+        if(WIZ.step===1&&WIZ.budget<=0){ wmsg('Indique un budget > 0.'); return false; }
+        if(WIZ.step===3&&!WIZ.pair){ wmsg('Choisis une paire.'); return false; }
+        wmsg(''); return true;
+      }
+      async function onEnter(step){ if(step===3)await loadPairs(); if(step===4){ if($('wizMin'))WIZ.min=parseInt($('wizMin').value,10)||60; await loadSuggest(); recap(); } }
+      $('wizNext').onclick=async function(){ if(!validStep())return; if(WIZ.step<4){ WIZ.step++; show(); await onEnter(WIZ.step); } };
+      if($('wizBack'))$('wizBack').onclick=function(){ if(WIZ.step>1){ WIZ.step--; show(); } };
+      if($('wizLaunch'))$('wizLaunch').onclick=async function(){
+        WIZ.min=parseInt($('wizMin').value,10)||60; WIZ.max=parseInt($('wizMax').value,10)||90;
+        var body={budget:WIZ.budget, asset:WIZ.market, instrument:WIZ.pair, profile:WIZ.profile, risk_level:WIZ.profile, mode:WIZ.mode, trader:WIZ.trader};
+        if(WIZ.valid==='auto'){ body.accept_min=Math.max(0,Math.min(1,WIZ.min/100)); body.accept_max=Math.max(0,Math.min(1,WIZ.max/100)); }
+        var h=await authHeaders();
+        var r=await fetch('/api/paper/session',{method:'POST',headers:h,body:JSON.stringify(body)}).then(function(x){return x.json();}).catch(function(e){return {error:String(e)};});
+        if(r.error){ var m2=r.error; if(r.next_open) m2+=' (réouverture '+tvFmtET(r.next_open)+' HE)'; wmsg('⚠️ '+m2); }
+        else { wmsg('✅ Session #'+r.session_id+' lancée ('+money(WIZ.budget)+'). Suivi dans « Bot sous tutelle ».'); WIZ.step=1; show(); loadAvail(); if(typeof refreshPaper==='function')refreshPaper(); }
+      };
+      show(); loadAvail();
+    })();
     if($('clkPairs')) $('clkPairs').addEventListener("click",function(e){ const ch=e.target.closest("[data-disp]"); if(ch) tvSelectPair(ch.dataset.disp); });
     tvPopulatePairs().then(function(){ tvRefreshMarket(); tvRefreshPrices(); tvRefreshClock(); });
     setInterval(tvRefreshPrices,5000); setInterval(tvRefreshMarket,30000); setInterval(tvRenderStatus,1000); setInterval(tvRefreshClock,60000);
