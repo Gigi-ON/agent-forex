@@ -905,6 +905,14 @@
     <section class="view" id="view-historique">
       <div class="card"><h3>Historique &amp; post-mortem</h3><div class="cap" style="margin:3px 0 12px">Trades clôturés et espérance en R — la vraie mesure de viabilité.</div>
         <div id="pgHistorique"><div class="cap">Chargement…</div></div></div>
+      <div class="card" style="margin-top:14px"><h3>Analyste IA — Grok</h3>
+        <div class="cap" style="margin:3px 0 10px">Lit ton journal + ta calibration et <b>propose</b> des réglages à valider. Il ne décide ni n'exécute aucun trade — c'est un copilote, pas un trader.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="copQ" class="fld" placeholder="Question (optionnel) — ex. pourquoi mes pertes s'enchaînent ?" style="flex:1;min-width:240px">
+          <button class="btn primary" id="copBtn">Analyser ma stratégie</button>
+        </div>
+        <div id="copOut" class="cap" style="margin-top:12px;white-space:pre-wrap;line-height:1.5"></div>
+      </div>
     </section>
     <section class="view" id="view-backtest">
       <div class="card"><h3>Backtest &amp; robustesse</h3><div class="cap" style="margin:3px 0 12px">L'edge survit-il sous friction ×2 et sur les trois segments ?</div>
@@ -1339,6 +1347,19 @@
   }
   (function(){ document.addEventListener('click', function(e){ var r=e.target.closest('[data-mkt][data-disp]'); if(r) pickInstrument(r.dataset.mkt, r.dataset.disp); }); })();
   refreshTops(); setInterval(refreshTops,60000);
+  (function(){ var b=$('copBtn'); if(!b)return;
+    b.onclick=async function(){
+      var out=$('copOut'); if(out)out.textContent='Analyse en cours… (quelques secondes)'; b.disabled=true;
+      try{
+        var h=await authHeaders(); h['Content-Type']='application/json';
+        var q=(($('copQ')&&$('copQ').value)||'').trim();
+        var r=await fetch('/api/copilot',{method:'POST',headers:h,body:JSON.stringify({question:q})}).then(function(x){return x.json();});
+        if(r&&r.answer){ out.textContent=r.answer+(r.model?('\n\n— '+r.model):''); }
+        else { var msg=(r&&r.error)||'erreur'; if(msg.indexOf('OPENROUTER')>=0) msg+=' (ajoute OPENROUTER_API_KEY au .env du VPS)'; out.textContent='Indisponible : '+msg; }
+      }catch(e){ if(out)out.textContent='Erreur : '+e; }
+      b.disabled=false;
+    };
+  })();
 
   /* ============ BRANCHEMENT PAPER-TRADING RÉEL (remplace la simulation) ============ */
   let PAPER={balance:5000,available:5000,reserved:0,sessions:[],pending:[],positions:[]};

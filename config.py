@@ -128,6 +128,10 @@ FOREX_PRIORITY = [
 # --- Alpaca (données historiques crypto, LECTURE seule) --------------------
 ALPACA_PAPER_KEY = os.environ.get("ALPACA_PAPER_KEY", "")
 ALPACA_PAPER_SECRET = os.environ.get("ALPACA_PAPER_SECRET", "")
+# --- Copilote IA (OpenRouter / Grok) — HORS chemin d'exécution ---------------
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "x-ai/grok-2-1212")
+
 # --- Supabase (écriture serveur du pipeline d'historique) ------------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://qdhnnsipwnogecrptxfk.supabase.co")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")

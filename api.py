@@ -807,6 +807,21 @@ def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
         return {"error": str(e)}
 
 
+@app.post("/api/copilot")
+def copilot_analyze(body: dict = Body(default={}), user=Depends(require_user)):
+    """Analyste IA (Grok via OpenRouter) — HORS chemin d'exécution.
+    Rassemble journal + calibration + réglages, demande une analyse + des
+    PROPOSITIONS d'ajustements. N'exécute/ne modifie RIEN."""
+    import copilot
+    try:
+        jr = journal()
+        lr = learning()
+        settings = {"PHASE1": getattr(config, "PHASE1", {}), "PHASE2": getattr(config, "PHASE2", {})}
+    except Exception as e:
+        jr, lr, settings = {"error": str(e)}, {}, {}
+    return copilot.analyze(jr, lr, settings, question=(body or {}).get("question"))
+
+
 @app.post("/api/paper/decide")
 def paper_decide(body: dict = Body(...), user=Depends(require_user)):
     with _paper_lock:
