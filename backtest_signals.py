@@ -113,12 +113,22 @@ def report(trades, instrument):
     print(">> Espérance > 0 = rentable. On place la bande là où l'espérance reste positive.")
 
 
-def _fetch(instrument):
+def _fetch(instrument, count=5000):
+    """Historique PROFOND pour un échantillon statistiquement valable.
+    Crypto : Parquet du pipeline d'historique (mois de données) si présent, sinon
+    Kraken (limité). Forex : OANDA jusqu'à 5000 bougies M15 (~52 jours)."""
     if "/" in instrument:
+        from pathlib import Path
+        f = Path("data/history") / (instrument.replace("/", "-") + "_15Min.parquet")
+        if f.exists():
+            import pandas as pd
+            df = pd.read_parquet(f).sort_values("ts")
+            return [{"o": float(r.o), "h": float(r.h), "l": float(r.l), "c": float(r.c)}
+                    for r in df.itertuples()]
         from kraken_data import KrakenData
         return KrakenData().get_history(instrument, interval=15)
     from oanda_client import OandaClient
-    return OandaClient(account="practice").get_candles(instrument, granularity="M15", count=500)
+    return OandaClient(account="practice").get_candles(instrument, granularity="M15", count=count)
 
 
 if __name__ == "__main__":
@@ -127,4 +137,5 @@ if __name__ == "__main__":
         candles = _fetch(inst)
     except Exception as e:
         print("bougies indisponibles:", e); sys.exit(1)
+    print("(%d bougies M15)" % len(candles))
     report(backtest(candles, inst), inst)
