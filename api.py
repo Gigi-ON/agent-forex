@@ -99,6 +99,63 @@ def account(mode: str = "pratique"):
         return {"error": "compte indisponible", "detail": str(e)}
 
 
+@app.get("/api/providers")
+def providers_status():
+    """Aperçu des comptes (Pratique/OANDA practice/Alpaca paper) + statut & quotas
+    des API externes (probes en direct, chronométrés)."""
+    import providers as _prov
+    import execution as _exec
+    accounts, provs = [], []
+
+    # --- Pratique (pool interne) ---
+    try:
+        snap = _paper.snapshot()
+        accounts.append({"key": "pratique", "label": "Pratique (interne)",
+                         "currency": getattr(config, "ACCOUNT_CURRENCY", "CAD"),
+                         "balance": snap.get("balance"), "available": snap.get("available"),
+                         "reserved": snap.get("reserved"), "status": "ok"})
+    except Exception as e:
+        accounts.append({"key": "pratique", "label": "Pratique (interne)", "status": "down", "error": str(e)})
+
+    # --- OANDA practice ---
+    acc, ok = _prov.timed("oanda", lambda: _exec.OandaExecutor("practice").account())
+    if ok and acc:
+        accounts.append({"key": "oanda_practice", "label": "OANDA practice", "status": "ok",
+                         "currency": acc.get("currency"), "nav": acc.get("nav"),
+                         "balance": acc.get("balance"), "open_trades": acc.get("open_trades")})
+    else:
+        accounts.append({"key": "oanda_practice", "label": "OANDA practice", "status": "down"})
+
+    # --- Alpaca paper ---
+    aacc, ok = _prov.timed("alpaca", lambda: _exec.AlpacaExecutor("paper").account())
+    if ok and aacc:
+        if aacc.get("rate_limit") is not None:
+            _prov.record("alpaca", ok=True, limit=aacc.get("rate_limit"), remaining=aacc.get("rate_remaining"))
+        accounts.append({"key": "alpaca_paper", "label": "Alpaca paper", "status": "ok",
+                         "currency": aacc.get("currency", "USD"), "equity": aacc.get("equity"),
+                         "cash": aacc.get("cash"), "buying_power": aacc.get("buying_power")})
+    else:
+        accounts.append({"key": "alpaca_paper", "label": "Alpaca paper", "status": "down"})
+
+    # --- Kraken (données de marché) : simple probe ---
+    def _kraken_probe():
+        from kraken_data import KrakenData
+        return KrakenData().latest_quotes(["BTC/USD"])
+    _prov.timed("kraken", _kraken_probe)
+
+    snap2 = _prov.snapshot()
+    meta = {"oanda": ("OANDA practice", "~120/s"), "alpaca": ("Alpaca paper", None),
+            "kraken": ("Kraken (marché)", "~1/s")}
+    for key, (label, limdoc) in meta.items():
+        st = snap2.get(key, {})
+        provs.append({"key": key, "label": label, "status": st.get("status"),
+                      "latency_ms": st.get("latency_ms"), "calls": st.get("calls", 0),
+                      "limit": st.get("limit"), "remaining": st.get("remaining"),
+                      "limit_doc": limdoc, "error": st.get("error")})
+
+    return {"accounts": accounts, "providers": provs}
+
+
 @app.get("/api/signals")
 def signals():
     """Signal courant par instrument, calculé sur les bougies réelles en cache."""

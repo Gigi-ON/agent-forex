@@ -43,6 +43,14 @@ class OandaClient:
         self.api.request(r)
         return float(r.response["account"]["NAV"])
 
+    def account_summary(self):
+        import oandapyV20.endpoints.accounts as accounts
+        r = accounts.AccountSummary(self.account_id)
+        self.api.request(r)
+        a = r.response["account"]
+        return {"nav": float(a["NAV"]), "balance": float(a["balance"]),
+                "currency": a.get("currency"), "open_trades": int(a.get("openTradeCount", 0))}
+
     def get_price(self, instrument: str) -> dict:
         import oandapyV20.endpoints.pricing as pricing
         r = pricing.PricingInfo(self.account_id, params={"instruments": instrument})

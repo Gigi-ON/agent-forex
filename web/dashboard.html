@@ -484,6 +484,16 @@
     <!-- ============ VUE APERÇU ============ -->
     <section class="view on" id="view-apercu">
 
+    <!-- Comptes (Pratique / OANDA practice / Alpaca paper) + Statut des API -->
+    <div class="grid r2" style="margin-bottom:14px">
+      <div class="card"><h3>Comptes</h3>
+        <div id="provAccounts" style="margin-top:10px;display:flex;flex-direction:column;gap:8px"><div class="cap">Chargement…</div></div>
+      </div>
+      <div class="card"><h3>Statut des API</h3>
+        <div id="provStatus" style="margin-top:10px;display:flex;flex-direction:column;gap:8px"><div class="cap">Chargement…</div></div>
+      </div>
+    </div>
+
     <!-- Données réelles OANDA (lecture seule via l'API) -->
     <div class="card" id="liveCard">
       <h3>🛰 Données réelles — OANDA <span class="cap" id="liveDot" style="font-weight:600">○ connexion…</span></h3>
@@ -1265,6 +1275,27 @@
   }
   refreshLive();
   setInterval(refreshLive,30000);
+  function provDot(status){ var c=status==='ok'?'var(--green)':(status==='down'?'var(--coral)':'var(--muted)');
+    return '<span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:'+c+'"></span>'; }
+  async function refreshProviders(){
+    var d; try{ d=await API('/api/providers'); }catch(e){ d=null; }
+    var ac=$('provAccounts'), st=$('provStatus'); if(!ac||!st)return;
+    if(!d||d.error){ ac.innerHTML='<div class="cap">Indisponible (API hors ligne).</div>'; if(st)st.innerHTML=''; return; }
+    ac.innerHTML=(d.accounts||[]).map(function(a){
+      var detail='hors ligne';
+      if(a.key==='pratique') detail='solde '+fmtc(a.balance,a.currency)+' · dispo '+fmtc(a.available,a.currency)+' · réservé '+fmtc(a.reserved,a.currency);
+      else if(a.key==='oanda_practice'&&a.status==='ok') detail='NAV '+fmtc(a.nav,a.currency)+' · solde '+fmtc(a.balance,a.currency)+' · '+(a.open_trades||0)+' ouvert(s)';
+      else if(a.key==='alpaca_paper'&&a.status==='ok') detail='equity '+fmtc(a.equity,a.currency)+' · cash '+fmtc(a.cash,a.currency)+' · pouvoir '+fmtc(a.buying_power,a.currency);
+      return '<div class="msg"><span style="display:flex;align-items:center;gap:8px">'+provDot(a.status)+'<b>'+a.label+'</b></span><span class="cap" style="margin-left:auto;text-align:right">'+detail+'</span></div>';
+    }).join('');
+    st.innerHTML=(d.providers||[]).map(function(p){
+      var lat=(p.latency_ms!=null)?(p.latency_ms+' ms'):'—', quota;
+      if(p.remaining!=null&&p.limit!=null) quota=p.remaining+'/'+p.limit+' restants';
+      else quota=(p.calls||0)+' appels'+(p.limit_doc?(' · limite '+p.limit_doc):'');
+      return '<div class="msg"><span style="display:flex;align-items:center;gap:8px">'+provDot(p.status)+'<b>'+p.label+'</b></span><span class="cap" style="margin-left:auto;text-align:right">'+lat+' · '+quota+'</span></div>';
+    }).join('');
+  }
+  refreshProviders(); setInterval(refreshProviders,20000);
 
   /* ============ BRANCHEMENT PAPER-TRADING RÉEL (remplace la simulation) ============ */
   let PAPER={balance:5000,available:5000,reserved:0,sessions:[],pending:[],positions:[]};

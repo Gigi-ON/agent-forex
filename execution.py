@@ -62,7 +62,7 @@ class OandaExecutor:
     def __init__(self, account="practice", client=None, live_trading=None, env=None):
         import config
         acc = config.ACCOUNTS.get(account, {})
-        self.account = account
+        self.account_name = account
         self.env = env or acc.get("env") or ("live" if account == "live" else "practice")
         self._live_trading = config.LIVE_TRADING if live_trading is None else live_trading
         self._client = client               # injectable pour les tests
@@ -78,7 +78,7 @@ class OandaExecutor:
     def _cli(self):
         if self._client is None:
             from oanda_client import OandaClient
-            self._client = OandaClient(account=self.account)
+            self._client = OandaClient(account=self.account_name)
         return self._client
 
     def place(self, instrument, units, stop, take_profit):
@@ -113,6 +113,10 @@ class OandaExecutor:
             return float(self._cli().get_equity())
         except Exception:
             return None
+
+    def account(self):
+        """Compte OANDA : NAV/solde/devise/nb trades ouverts."""
+        return self._cli().account_summary()
 
     def open_trades(self):
         try:
@@ -176,7 +180,7 @@ class AlpacaExecutor:
     def __init__(self, account="paper", session=None, key=None, secret=None,
                  base=None, live_trading=None):
         import config
-        self.account = account
+        self.account_name = account
         self.env = "live" if account == "live" else "paper"
         self.base = base or ("https://api.alpaca.markets" if self.env == "live"
                              else "https://paper-api.alpaca.markets")
@@ -229,6 +233,22 @@ class AlpacaExecutor:
             return float(d.get("equity") or d.get("cash"))
         except Exception:
             return None
+
+    def account(self):
+        """Compte Alpaca : equity/cash/buying_power + quota (en-têtes rate-limit)."""
+        r = self._req("get", "/v2/account")
+        d = self._json(r)
+        rl = rr = None
+        try:
+            h = getattr(r, "headers", {}) or {}
+            rl = int(h["X-RateLimit-Limit"]) if h.get("X-RateLimit-Limit") else None
+            rr = int(h["X-RateLimit-Remaining"]) if h.get("X-RateLimit-Remaining") else None
+        except Exception:
+            pass
+        return {"equity": float(d.get("equity") or 0), "cash": float(d.get("cash") or 0),
+                "buying_power": float(d.get("buying_power") or 0),
+                "currency": d.get("currency", "USD"), "status": d.get("status"),
+                "rate_limit": rl, "rate_remaining": rr}
 
     def open_trades(self):
         try:
