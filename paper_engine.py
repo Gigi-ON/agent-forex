@@ -683,6 +683,8 @@ class PaperEngine:
             "running": self.running,
             "daily_halted": self.daily_halted,
             "day_pnl": round(self._day_pnl, 2),
+            "sizing": {"uniform": bool(getattr(__import__("config"), "UNIFORM_SIZING", False)),
+                       "base": float(getattr(__import__("config"), "RISK_BASE_CCY", 0) or 0)},
             "open_risk": round(self._open_risk(), 2),
             "broker_nav": self._broker_nav,
             "last_tick": self.last_tick,

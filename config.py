@@ -59,6 +59,13 @@ HARD_LIMITS = {
     "min_reward_risk_ratio": 1.5,
 }
 
+# --- Sizing uniforme (base saine et mesurable) --------------------------------
+# Le risque par trade se base sur un CAPITAL DE RÉFÉRENCE FIXE (identique pour
+# toutes les sessions), et non sur le budget de la session. Ainsi, à profil égal,
+# chaque trade risque le MÊME montant -> R et $ alignés, comparables.
+UNIFORM_SIZING = os.environ.get("UNIFORM_SIZING", "1") == "1"
+RISK_BASE_CCY = float(os.environ.get("RISK_BASE_CCY", "2000"))   # capital de référence
+
 # --- Phase 1 : qualité de décision (pratiques de traders aguerris) ----------
 # Tous ces réglages sont centralisés ici pour calibration/backtest ultérieurs.
 PHASE1 = {

@@ -1933,6 +1933,7 @@
     let h=_kpis([['Risque max / trade','2,0 %'],['Perte journalière max','4,0 %'],['Levier max','10×'],['Positions max','3'],['Ratio gain/risque min','1,5 : 1']]);
     if(pp) h+=_row('<b>Exposition courante</b><span class="cap">'+pp.positions.length+' position(s) · risque engagé '+money(pp.open_risk)+'</span><span style="margin-left:auto" class="'+(pp.daily_halted?'dn':'up')+'">'+(pp.daily_halted?'coupe-circuit ACTIF':'sous les plafonds')+'</span>');
     if(st) h+=_row('<b>Verrou d\'exécution réelle</b><span class="cap">env '+st.environment+' · LIVE_TRADING '+(st.live_trading?'activé':'désactivé')+'</span><span style="margin-left:auto">'+(st.real_execution_possible?'<span class="dn">LEVÉ</span>':'<span class="up">ACTIF</span>')+'</span>');
+    if(pp&&pp.sizing){ h+=_row('<b>Sizing '+(pp.sizing.uniform?'uniforme':'par session')+'</b><span class="cap">chaque trade risque le m\u00eame montant, ind\u00e9pendant du budget de session</span><span style="margin-left:auto" class="up">base '+money(pp.sizing.base)+'</span>'); }
     el.innerHTML=h;
   }
 

@@ -131,6 +131,7 @@ class RiskManager:
         portfolio_open_risk: float = 0.0,
         portfolio_equity: float = 0.0,
         streak_scale: float = 1.0,
+        risk_base: float = 0.0,
     ) -> SizingResult:
         """
         equity_account_ccy     : capital du compte, dans la devise du compte
@@ -142,6 +143,9 @@ class RiskManager:
         current_atr/average_atr: pour l'ajustement volatilité (optionnel)
         """
         reasons = []
+        # Base de dimensionnement : capital de référence FIXE si fourni
+        # (sizing uniforme), sinon l'équité de la session (ancien comportement).
+        base = risk_base if (risk_base and risk_base > 0) else equity_account_ccy
 
         # 1) Le stop-loss est obligatoire et doit être du bon côté.
         d = abs(proposal.entry_price - proposal.stop_loss)
@@ -178,7 +182,7 @@ class RiskManager:
         vol_factor = self.volatility_factor(current_atr, average_atr)
         ext = max(0.0, min(1.0, external_caution))
         risk_amount_account = (
-            equity_account_ccy * (risk_pct / 100.0) * vol_factor * ext
+            base * (risk_pct / 100.0) * vol_factor * ext
         )
 
         # 6bis) PHASE 2 — DE-RISKING : réduit la taille après des pertes en série.
@@ -214,15 +218,15 @@ class RiskManager:
         # 9) Levier effectif = notionnel / capital.
         notional_account = units * base_to_account_rate
         effective_leverage = (
-            notional_account / equity_account_ccy if equity_account_ccy > 0 else 0
+            notional_account / base if base > 0 else 0
         )
         # Si le levier dépasse le plafond, on réduit les unités pour rentrer dedans.
         if effective_leverage > HARD_LIMITS["max_effective_leverage"]:
-            max_notional = equity_account_ccy * HARD_LIMITS["max_effective_leverage"]
+            max_notional = base * HARD_LIMITS["max_effective_leverage"]
             _u = max_notional / base_to_account_rate
             units = int(_u) if whole_units else round(_u, 8)
             notional_account = units * base_to_account_rate
-            effective_leverage = notional_account / equity_account_ccy
+            effective_leverage = notional_account / base
             # le risque réel baisse en conséquence
             risk_amount_quote = units * d
             risk_amount_account = risk_amount_quote * quote_to_account_rate
