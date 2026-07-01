@@ -58,6 +58,21 @@ def t_analyze():
     print("OK analyze (contexte + question dans le prompt, system strict)")
 
 
+def t_reasoning_passthrough():
+    """reasoning n'est ajoute au payload que s'il est fourni (Ingenieur uniquement)."""
+    old = config.OPENROUTER_API_KEY; config.OPENROUTER_API_KEY = "sk-test"
+    try:
+        fs = FakeSess()
+        copilot.ask([{"role": "user", "content": "u"}], session=fs)
+        assert "reasoning" not in fs.calls[-1][1]                      # defaut : pas de reasoning
+        fs2 = FakeSess()
+        copilot.ask([{"role": "user", "content": "u"}], session=fs2, reasoning={"enabled": True})
+        assert fs2.calls[-1][1].get("reasoning") == {"enabled": True}  # fourni : present
+    finally:
+        config.OPENROUTER_API_KEY = old
+    print("OK reasoning (absent par defaut, present si demande)")
+
+
 if __name__ == "__main__":
-    t_no_key(); t_ask(); t_analyze()
+    t_no_key(); t_ask(); t_analyze(); t_reasoning_passthrough()
     print("\n=== Lot 4 (copilote Grok) : tous les tests passent ===")

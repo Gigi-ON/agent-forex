@@ -22,13 +22,15 @@ SYSTEM = (
 )
 
 
-def ask(messages, model=None, session=None, timeout=45):
+def ask(messages, model=None, session=None, timeout=45, reasoning=None):
     import config
     key = getattr(config, "OPENROUTER_API_KEY", "")
     if not key:
         return {"error": "OPENROUTER_API_KEY manquante : ajoute-la au .env du VPS."}
     model = model or getattr(config, "OPENROUTER_MODEL", "x-ai/grok-2-1212")
     payload = {"model": model, "messages": messages, "temperature": 0.3}
+    if reasoning is not None:
+        payload["reasoning"] = reasoning
     headers = {"Authorization": "Bearer " + key,
                "HTTP-Referer": "https://agent-forex.unidevlabs.com",
                "X-Title": "agent-forex"}

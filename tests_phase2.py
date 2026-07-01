@@ -15,8 +15,8 @@ def _size(**kw):
 
 
 def t_heat():
-    import config
-    cap = config.PHASE2.get("max_portfolio_heat_pct", 6.0) / 100.0 * 5000.0  # budget de risque
+    import strategy
+    cap = strategy.P2().get("max_portfolio_heat_pct", 6.0) / 100.0 * 5000.0  # budget de risque (meme source que le moteur)
     base = _size()
     full = _size(portfolio_open_risk=cap - 2.0, portfolio_equity=5000.0)   # reste 2$
     none = _size(portfolio_open_risk=cap, portfolio_equity=5000.0)         # cap atteint
@@ -59,13 +59,14 @@ def t_overtrading():
         e.supervisor.propose = lambda *a, **k: calls.append(1)
         return e, s, calls
 
-    import config
-    cool = config.PHASE2.get("cooldown_min_after_loss", 30)
+    import strategy
+    cool = strategy.P2().get("cooldown_min_after_loss", 30)
+    space = strategy.P2().get("min_minutes_between_same_pair", 15)
     e, s, c = setup(); e.tick(market, _NOW); assert len(c) == 1
     e, s, c = setup(); e._trades_today = 999; e.tick(market, _NOW); assert len(c) == 0
     e, s, c = setup(); e._last_loss_time[s.id] = _NOW - timedelta(minutes=cool - 1); e.tick(market, _NOW); assert len(c) == 0
     e, s, c = setup(); e._last_loss_time[s.id] = _NOW - timedelta(minutes=cool + 5); e.tick(market, _NOW); assert len(c) == 1
-    e, s, c = setup(); e._last_entry_time["EUR_USD"] = _NOW - timedelta(minutes=5); e.tick(market, _NOW); assert len(c) == 0
+    e, s, c = setup(); e._last_entry_time["EUR_USD"] = _NOW - timedelta(minutes=max(1, space - 1)); e.tick(market, _NOW); assert len(c) == 0
     # de-risking : multiplicateur en escalier, plancher à 0.4
     e, _, _ = setup()
     e._loss_streak = 0; assert e._risk_scale() == 1.0

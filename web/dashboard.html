@@ -928,6 +928,17 @@
     <section class="view" id="view-risque">
       <div class="card"><h3>Gestion du risque</h3><div class="cap" style="margin:3px 0 12px">Plafonds durs, exposition courante et verrou d'exécution.</div>
         <div id="pgRisque"><div class="cap">Chargement…</div></div></div>
+      <div class="card" style="margin-top:14px"><h3>Journal de décision &amp; récap <span class="cap" id="hbState" style="font-weight:600"></span></h3>
+        <div class="cap" style="margin:2px 0 10px">Chaque décision (auto / attente / refus) avec son <b>motif</b>, y compris les inactions. C'est la pièce d'amélioration : on lit <i>pourquoi</i> ça passe ou pas.</div>
+        <div class="cap" id="decSummary" style="margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn" id="decRefresh">Rafraîchir</button>
+          <button class="btn" id="recapBtn">Récap du jour</button>
+          <a class="btn" id="decExport" href="/api/decisions/export" target="_blank" rel="noopener">Exporter (.md)</a>
+        </div>
+        <div id="decList" class="cap" style="max-height:260px;overflow:auto"></div>
+        <div id="recapOut" class="cap" style="margin-top:10px;white-space:pre-wrap"></div>
+      </div>
       <div class="card" style="margin-top:14px"><h3>Autopilote 24/7 <span class="cap" id="apState" style="font-weight:600"></span></h3>
         <div class="cap" style="margin:2px 0 10px">Maintient des sessions sur les marchés <b>ouverts</b> (crypto 24/7 + forex en séance). <b>Paper only</b> — jamais le Réel. L'autopilote ouvre ; le risque dispose.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
@@ -944,6 +955,22 @@
           <button class="btn" id="apSave">Enregistrer</button>
         </div>
         <div id="apJournal" class="cap" style="margin-top:10px"></div>
+      </div>
+      <div class="card" style="margin-top:14px"><h3>Auto-Trainer — réglage automatique (Ingénieur en boucle) <span class="cap" id="atState" style="font-weight:600"></span></h3>
+        <div class="cap" style="margin:2px 0 10px">Backteste des réglages et n'<b>applique que si l'espérance s'améliore</b> (Δ ≥ seuil). Versionné, <b>rollback auto</b> (coupe-circuit + re-validation). Jamais de secrets. Paper only.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+          <button class="btn primary" id="atToggle" data-on="1">Activer</button>
+          <button class="btn" id="atKill" style="border-color:var(--coral);color:var(--coral)">Kill-switch</button>
+          <span class="cap" id="atInfo"></span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field"><label class="cap">Intervalle (h)</label><input id="atInterval" type="number" min="1" max="168" style="width:80px"></div>
+          <div class="field"><label class="cap">Seuil Δ (R)</label><input id="atDelta" type="number" step="0.01" min="0" style="width:80px"></div>
+          <div class="field"><label class="cap">Changements/jour</label><input id="atMax" type="number" min="1" max="20" style="width:80px"></div>
+          <div class="field"><label class="cap">Source</label><select id="atSource"><option value="grid">Grille (sans coût)</option><option value="ingenieur">Ingénieur (Claude)</option></select></div>
+          <button class="btn" id="atSave">Enregistrer</button>
+        </div>
+        <div id="atJournal" class="cap" style="margin-top:10px"></div>
       </div>
       <div class="card" style="margin-top:14px"><h3>Ingénieur — optimiseur de config (Claude)</h3>
         <div class="cap" style="margin:2px 0 10px">Propose des ajustements PHASE1/PHASE2 pour mieux entrer sur le marché. <b>3 étapes</b> : Proposer → Réviser (backtest avant/après) → Appliquer. L'IA propose, <b>tu valides</b>. Jamais de secrets.</div>
@@ -1515,6 +1542,48 @@
     else if(b.id==='apSave'){ apPost('/api/autopilot/config',{mode:$('apMode').value,trader:$('apTrader').value,markets:$('apMarkets').value,max_concurrent:parseInt($('apMax').value,10),budget_per_session:parseFloat($('apBudget').value)}); }
   });
   apLoad(); setInterval(apLoad,15000);
+
+  /* ============ AUTO-TRAINER ============ */
+  async function atLoad(){ try{ var d=await API('/api/autotrainer'); atRender(d);}catch(e){} }
+  function atRender(d){ if(!d)return; var c=d.config||{};
+    var st=$('atState'); if(st) st.textContent=d.enabled?'· ACTIF':'· arrêté';
+    var tg=$('atToggle'); if(tg){ tg.textContent=d.enabled?'Désactiver':'Activer'; tg.dataset.on=d.enabled?'0':'1'; }
+    var inf=$('atInfo'); if(inf) inf.textContent='version '+(d.version||0)+' · '+(d.changes_today||0)+' chgt(s) aujourd\'hui';
+    if($('atInterval'))$('atInterval').value=c.interval_hours||24;
+    if($('atDelta'))$('atDelta').value=(c.min_delta!=null?c.min_delta:0.05);
+    if($('atMax'))$('atMax').value=c.max_changes_per_day||1;
+    if($('atSource'))$('atSource').value=c.source||'grid';
+    var j=$('atJournal'); if(j){ var rows=(d.journal||[]).slice(0,8).map(function(x){
+      var t=new Date((x.ts||0)*1000).toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+      return '<div>'+t+' · '+(x.msg||'')+'</div>'; }).join('');
+      j.innerHTML=rows||'<div class="cap">Aucune passe pour l\'instant.</div>'; }
+  }
+  async function atPost(url,body){ try{ var h2=await authHeaders();
+    var d=await fetch(url,{method:'POST',headers:h2,body:JSON.stringify(body||{})}).then(function(x){return x.json();});
+    if(d)atRender(d);}catch(e){} }
+  document.addEventListener('click',function(ev){ var b=ev.target.closest&&ev.target.closest('#atToggle,#atKill,#atSave'); if(!b)return;
+    if(b.id==='atToggle'){ atPost('/api/autotrainer/toggle',{on:b.dataset.on==='1'}); }
+    else if(b.id==='atKill'){ atPost('/api/autotrainer/kill',{}); }
+    else if(b.id==='atSave'){ atPost('/api/autotrainer/config',{interval_hours:parseInt($('atInterval').value,10),min_delta:parseFloat($('atDelta').value),max_changes_per_day:parseInt($('atMax').value,10),source:$('atSource').value}); }
+  });
+  atLoad(); setInterval(atLoad,20000);
+
+  /* ============ JOURNAL DE DÉCISION + HEARTBEAT + RÉCAP ============ */
+  function decColor(k){ return k==='auto'?'var(--green)':(k==='pending'?'var(--amber)':'var(--coral)'); }
+  async function hbLoad(){ try{ var d=await API('/api/heartbeat'); var el=$('hbState'); if(el){
+    var stale=(Date.now()/1000-(d.ts||0))>90; var alive=d.running&&!stale;
+    el.textContent='· '+(alive?'moteur vivant':'moteur muet')+(d.daily_halted?' · coupe-circuit':'')+' · '+(d.active_sessions||0)+' sess.';
+    el.style.color=alive?'var(--green)':'var(--coral)'; } }catch(e){} }
+  async function decLoad(){ try{ var d=await API('/api/decisions'); var s=d.summary||{};
+    var sm=$('decSummary'); if(sm) sm.innerHTML='Aujourd\'hui : <b style="color:var(--green)">'+(s.auto||0)+' auto</b> · <b style="color:var(--amber)">'+(s.pending||0)+' attente</b> · <b style="color:var(--coral)">'+(s.rejected||0)+' refus</b>';
+    var l=$('decList'); if(l){ var rows=(d.decisions||[]).slice(0,40).map(function(x){
+      var t=new Date((x.ts||0)*1000).toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+      return '<div style="padding:2px 0;border-bottom:1px solid var(--line)"><span style="color:'+decColor(x.decision)+'">●</span> '+t+' · <b>'+(x.instrument||'?')+'</b> '+(x.side||'')+' · '+Math.round((x.confidence||0)*100)+'% · '+(x.reason||'')+'</div>'; }).join('');
+      l.innerHTML=rows||'<div class="cap">Aucune décision enregistrée pour l\'instant.</div>'; } }catch(e){} }
+  async function recapLoad(){ try{ var d=await API('/api/recap/daily'); var o=$('recapOut'); if(o) o.textContent=(d&&d.md)||'(récap indisponible)'; }catch(e){} }
+  document.addEventListener('click',function(ev){ var b=ev.target.closest&&ev.target.closest('#decRefresh,#recapBtn'); if(!b)return;
+    if(b.id==='decRefresh'){ decLoad(); hbLoad(); } else if(b.id==='recapBtn'){ recapLoad(); } });
+  hbLoad(); decLoad(); setInterval(hbLoad,20000); setInterval(decLoad,25000);
   (function(){ var b=$('copBtn'); if(!b)return;
     b.onclick=async function(){
       var out=$('copOut'); if(out)out.textContent='Analyse en cours… (quelques secondes)'; b.disabled=true;

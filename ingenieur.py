@@ -80,7 +80,7 @@ def propose(context, session=None, model=None):
     user = ("Contexte (données réelles) :\n" + json.dumps(context, ensure_ascii=False)[:6000]
             + "\n\nPropose le diff PHASE1/PHASE2 en JSON.")
     r = copilot.ask([{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
-                    model=model, session=session)
+                    model=model, session=session, reasoning={"enabled": True})
     if not isinstance(r, dict) or r.get("error"):
         return {"error": (r or {}).get("error", "Ingénieur indisponible")}
     obj = _parse(r.get("answer"))

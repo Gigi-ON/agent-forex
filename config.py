@@ -136,7 +136,7 @@ OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "x-ai/grok-2-1212")
 OPENROUTER_MODEL_ANALYSTE = os.environ.get("OPENROUTER_MODEL_ANALYSTE", "x-ai/grok-4.3")
 OPENROUTER_MODEL_CHASSEUR = os.environ.get("OPENROUTER_MODEL_CHASSEUR", "x-ai/grok-4.1-fast")
 # L'Ingénieur (méta-optimiseur de config) est orchestré par un Claude via OpenRouter.
-OPENROUTER_MODEL_INGENIEUR = os.environ.get("OPENROUTER_MODEL_INGENIEUR", "anthropic/claude-sonnet-4")
+OPENROUTER_MODEL_INGENIEUR = os.environ.get("OPENROUTER_MODEL_INGENIEUR", "anthropic/claude-opus-4.7-fast")
 # Plafond d'appels Grok par jour (coût) — le chasseur se met en pause au-delà.
 GROK_DAILY_CALL_CAP = int(os.environ.get("GROK_DAILY_CALL_CAP", "500"))
 # --- Supabase (écriture serveur du pipeline d'historique) ------------------

@@ -435,10 +435,27 @@ def _tick_loop():
                     _ap.step(_paper)     # Autopilote : maintient N sessions sur marchés ouverts
                 except Exception:
                     pass
+                try:
+                    import monitoring as _mon
+                    _mon.write_heartbeat(_paper)
+                except Exception:
+                    pass
                 _save_paper()
         except Exception:
             pass
         _time.sleep(10)
+
+
+def _autotrainer_loop():
+    """Auto-Trainer : passe périodique (auto-gate sur intervalle en heures).
+    Tourne HORS du _paper_lock car il backteste — ne doit pas geler le moteur."""
+    import autotrainer as _at
+    while True:
+        try:
+            _at.step(_paper)
+        except Exception:
+            pass
+        _time.sleep(300)
 
 
 def _gather_prices():
@@ -558,6 +575,7 @@ def _start_streams():
 @app.on_event("startup")
 def _start_paper():
     _threading.Thread(target=_tick_loop, daemon=True).start()
+    _threading.Thread(target=_autotrainer_loop, daemon=True).start()
     _threading.Thread(target=_price_loop, daemon=True).start()  # repli lent (filet)
     _start_streams()
 
@@ -875,6 +893,60 @@ def autopilot_kill(user=Depends(require_user)):
     _ap.kill()
     with _paper_lock:
         return _ap.status(_paper)
+
+
+@app.get("/api/autotrainer")
+def autotrainer_status(user=Depends(require_user)):
+    import autotrainer as _at
+    return _at.status()
+
+
+@app.post("/api/autotrainer/toggle")
+def autotrainer_toggle(body: dict = Body(default={}), user=Depends(require_user)):
+    import autotrainer as _at
+    _at.toggle(bool(body.get("on", True)))
+    return _at.status()
+
+
+@app.post("/api/autotrainer/config")
+def autotrainer_config(body: dict = Body(default={}), user=Depends(require_user)):
+    import autotrainer as _at
+    _at.set_config(body or {})
+    return _at.status()
+
+
+@app.post("/api/autotrainer/kill")
+def autotrainer_kill(user=Depends(require_user)):
+    import autotrainer as _at
+    _at.kill()
+    return _at.status()
+
+
+@app.get("/api/heartbeat")
+def heartbeat_ep():
+    import monitoring as _mon
+    with _paper_lock:
+        return _mon.heartbeat(_paper)
+
+
+@app.get("/api/decisions")
+def decisions_ep(user=Depends(require_user)):
+    import decisions as _dec
+    return {"decisions": _dec.recent(60), "summary": _dec.summary_today()}
+
+
+@app.get("/api/decisions/export")
+def decisions_export_ep(user=Depends(require_user)):
+    import decisions as _dec
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(_dec.export_md(300), media_type="text/markdown")
+
+
+@app.get("/api/recap/daily")
+def recap_daily_ep(user=Depends(require_user)):
+    import monitoring as _mon
+    with _paper_lock:
+        return {"md": _mon.recap_md(_paper)}
 
 
 @app.post("/api/ingenieur/analyze")

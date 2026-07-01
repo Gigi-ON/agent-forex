@@ -46,6 +46,16 @@ def _legs(pair):
 EXPIRY_SECONDS = 20
 
 
+def _journal_decision(session_id, pair, side, conf, risk, kind, reason, now=None):
+    """Enregistre la décision dans le journal (best-effort, jamais bloquant)."""
+    try:
+        import decisions
+        ts = now.timestamp() if (now is not None and hasattr(now, "timestamp")) else None
+        decisions.record(session_id, pair, side, conf, risk, kind, reason, ts=ts)
+    except Exception:
+        pass
+
+
 @dataclass
 class Pending:
     session_id: str
@@ -151,8 +161,11 @@ class Supervisor:
             portfolio_equity=pf.get("equity", 0.0),
             streak_scale=risk_scale)
         if not sized.accepted or sized.units == 0:
+            _reason = sized.reasons[0] if sized.reasons else "refusé au dimensionnement"
             if sized.reasons:
-                self.last_look[session.id]["note"] = sized.reasons[0]
+                self.last_look[session.id]["note"] = _reason
+            _journal_decision(session.id, pair, sig.proposal.side, sig.confidence, 0.0,
+                               "rejected", _reason, now)
             return None
 
         # GARDE DE CORRÉLATION : refuser si ce trade pousse l'exposition NETTE
@@ -168,8 +181,10 @@ class Supervisor:
             legs = [(base_c, sgn * r), (quote_c, -sgn * r)]
             for ccy, delta in legs:
                 if ccy and abs(exp.get(ccy, 0.0) + delta) > cap:
-                    self.last_look[session.id]["note"] = (
-                        "Exposition %s trop concentrée : trade ignoré (corrélation)." % ccy)
+                    _msg = "Exposition %s trop concentrée : trade ignoré (corrélation)." % ccy
+                    self.last_look[session.id]["note"] = _msg
+                    _journal_decision(session.id, pair, sig.proposal.side, sig.confidence,
+                                      sized.risk_amount_account_ccy, "rejected", _msg, now)
                     return None
 
         p = Pending(
@@ -183,6 +198,8 @@ class Supervisor:
         ok, why = self._auto_decision(session, p, now)
         self.last_look[session.id]["note"] = why
         self.last_look[session.id]["decision"] = "auto" if ok else "pending"
+        _journal_decision(session.id, pair, p.proposal.side, p.confidence, p.risk,
+                          "auto" if ok else "pending", why, now)
         if ok:
             self.approve(p.id, now, auto=True)
             return p

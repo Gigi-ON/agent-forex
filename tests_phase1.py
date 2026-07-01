@@ -24,7 +24,7 @@ def _mk(closes, w=0.15):
 def t_signals():
     from signals import SignalEngine
     from indicators import adx
-    eng=SignalEngine()
+    eng=SignalEngine(use_store=False)
     # range choppy -> ADX faible -> pas de trade
     random.seed(7); x=100.0; cl=[]
     for _ in range(240):
