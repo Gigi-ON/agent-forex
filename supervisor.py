@@ -44,7 +44,6 @@ def _legs(pair):
 
 
 EXPIRY_SECONDS = 20
-AUTO_MIN_CONFIDENCE = 0.75
 
 
 @dataclass

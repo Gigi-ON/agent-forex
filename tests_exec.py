@@ -295,6 +295,53 @@ def t_alpaca_symbol():
     print("OK Alpaca symbole (BTCUSD <-> BTC/USD : matche, pas de fausse clôture)")
 
 
+def t_net_hardening():
+    """Durcissement réseau : retry 429, circuit-breaker, throttle, idempotence."""
+    X.breaker_reset()
+    slept = []
+    sleep = lambda s: slept.append(s)
+
+    class R:
+        def __init__(self, sc, headers=None):
+            self.status_code = sc
+            self.headers = headers or {}
+
+    # 1) 429 puis 200 -> with_retry réessaie et renvoie le succès
+    seq = [R(429, {"Retry-After": "0"}), R(200)]
+    n = {"i": 0}
+    def do_ok():
+        r = seq[n["i"]]; n["i"] += 1; return r
+    r = X.with_retry("t1", do_ok, sleep=sleep)
+    assert r.status_code == 200 and n["i"] == 2 and slept
+
+    # 2) 3 appels échoués -> disjoncteur ouvert -> CircuitOpen instantané
+    X.breaker_reset("t2")
+    def do_fail():
+        raise RuntimeError("down")
+    for _ in range(3):
+        try:
+            X.with_retry("t2", do_fail, sleep=sleep, retries=1)
+        except RuntimeError:
+            pass
+    try:
+        X.with_retry("t2", do_fail, sleep=sleep, retries=1)
+        assert False, "CircuitOpen attendu"
+    except X.CircuitOpen:
+        pass
+
+    # 3) throttle si quota restant bas
+    X.breaker_reset("t3"); slept.clear()
+    X.with_retry("t3", lambda: R(200, {"X-RateLimit-Remaining": "5"}), sleep=sleep)
+    assert 0.5 in slept
+
+    # 4) idempotence : client_order_id déterministe-unique présent sur l'ordre
+    fa = FakeAlpaca()
+    X.AlpacaExecutor("paper", session=fa, key="k", secret="s").place("BTC/USD", 0.5, 0, 0)
+    body = fa.calls[-1][2]
+    assert "client_order_id" in body and body["client_order_id"].startswith("af-")
+    print("OK durcissement réseau (retry 429, circuit-breaker, throttle, idempotence)")
+
+
 if __name__ == "__main__":
-    t_gating(); t_place(); t_routing(); t_engine_hook(); t_alpaca(); t_close_broker(); t_reconcile(); t_writeback(); t_alpaca_symbol()
+    t_gating(); t_place(); t_routing(); t_engine_hook(); t_alpaca(); t_close_broker(); t_reconcile(); t_writeback(); t_alpaca_symbol(); t_net_hardening()
     print("\n=== Exécution courtier (incréments 1-2) : tous les tests passent ===")

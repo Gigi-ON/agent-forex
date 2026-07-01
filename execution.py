@@ -13,6 +13,9 @@ autorisé. Envoyer sur un compte LIVE (argent réel) exige le verrou LIVE_TRADIN
 Le client réseau est injectable (tests sans dépendance OANDA).
 """
 from dataclasses import dataclass
+import time as _time
+import threading as _threading
+import uuid as _uuid
 
 
 @dataclass
@@ -24,6 +27,103 @@ class ExecResult:
     blocked: bool = False           # refusé par un garde (ex. live verrouillé)
     error: str = None
     raw: dict = None
+
+
+
+# === Durcissement réseau partagé : retry/backoff + circuit-breaker ==========
+# But : un courtier lent ou en panne ne doit JAMAIS geler le moteur (tick loop).
+# - timeout court, retry borné respectant Retry-After sur 429/5xx,
+# - circuit-breaker : après N appels échoués d'affilée, on saute le fournisseur
+#   pendant COOLDOWN s (CircuitOpen levé instantanément, sans toucher le réseau),
+# - throttle adaptatif si X-RateLimit-Remaining devient bas.
+NET_TIMEOUT = 6.0          # s : court, pour ne pas bloquer le tick sous le lock
+NET_RETRIES = 3            # tentatives sur 429/5xx
+BREAKER_FAILS = 3          # appels échoués consécutifs avant ouverture
+BREAKER_COOLDOWN = 60.0    # s de pause quand le disjoncteur est ouvert
+RL_LOW = 20                # seuil X-RateLimit-Remaining -> throttle
+
+_BREAKER = {}
+_BREAKER_LOCK = _threading.Lock()
+
+
+class CircuitOpen(Exception):
+    """Disjoncteur ouvert : appel sauté sans taper le réseau."""
+
+
+def breaker_open(provider, now=None):
+    now = _time.time() if now is None else now
+    with _BREAKER_LOCK:
+        b = _BREAKER.get(provider)
+        return bool(b and b.get("open_until", 0.0) > now)
+
+
+def breaker_record(provider, ok, now=None):
+    now = _time.time() if now is None else now
+    with _BREAKER_LOCK:
+        b = _BREAKER.setdefault(provider, {"open_until": 0.0, "fails": 0})
+        if ok:
+            b["fails"] = 0
+            b["open_until"] = 0.0
+        else:
+            b["fails"] += 1
+            if b["fails"] >= BREAKER_FAILS:
+                b["open_until"] = now + BREAKER_COOLDOWN
+        return dict(b)
+
+
+def breaker_reset(provider=None):
+    with _BREAKER_LOCK:
+        if provider is None:
+            _BREAKER.clear()
+        else:
+            _BREAKER.pop(provider, None)
+
+
+def _maybe_throttle(r, sleep):
+    try:
+        rem = (getattr(r, "headers", {}) or {}).get("X-RateLimit-Remaining")
+        if rem is not None and int(rem) < RL_LOW:
+            sleep(0.5)
+    except Exception:
+        pass
+
+
+def with_retry(provider, do, sleep=None, retries=NET_RETRIES, now=None):
+    """Exécute do() -> réponse (objet .status_code/.headers) avec retry/backoff
+    sur 429/5xx (respecte Retry-After) et circuit-breaker. do() peut lever
+    (erreur réseau). Compte 1 échec par APPEL (pas par tentative)."""
+    sleep = _time.sleep if sleep is None else sleep
+    nowf = (lambda: _time.time()) if now is None else now
+    if breaker_open(provider, nowf()):
+        raise CircuitOpen("disjoncteur %s ouvert" % provider)
+    last = None
+    for attempt in range(retries):
+        try:
+            r = do()
+        except Exception as e:
+            last = e
+            if attempt == retries - 1:
+                breaker_record(provider, False, nowf())
+                raise
+            sleep(min(2 ** attempt * 0.4, 4.0))
+            continue
+        sc = getattr(r, "status_code", 200)
+        if sc == 429 or sc >= 500:
+            if attempt == retries - 1:
+                breaker_record(provider, False, nowf())
+                return r
+            wait = 0.0
+            try:
+                wait = float((getattr(r, "headers", {}) or {}).get("Retry-After", 0) or 0)
+            except Exception:
+                wait = 0.0
+            sleep(wait or min(2 ** attempt * 0.4, 4.0))
+            continue
+        breaker_record(provider, True, nowf())
+        _maybe_throttle(r, sleep)
+        return r
+    breaker_record(provider, False, nowf())
+    raise last or Exception("échec réseau %s" % provider)
 
 
 class InternalExecutor:
@@ -198,12 +298,14 @@ class AlpacaExecutor:
 
     def _req(self, method, path, **kw):
         url = self.base + path
-        if self._session is not None:
-            return getattr(self._session, method)(url, **kw)
-        import requests
-        return getattr(requests, method)(
-            url, headers={"APCA-API-KEY-ID": self._key,
-                          "APCA-API-SECRET-KEY": self._secret}, timeout=15, **kw)
+        sess = self._session
+        if sess is not None:
+            do = lambda: getattr(sess, method)(url, **kw)          # client injecté (tests)
+        else:
+            import requests
+            headers = {"APCA-API-KEY-ID": self._key, "APCA-API-SECRET-KEY": self._secret}
+            do = lambda: requests.request(method, url, headers=headers, timeout=NET_TIMEOUT, **kw)
+        return with_retry("alpaca", do)
 
     @staticmethod
     def _json(r):
@@ -218,7 +320,8 @@ class AlpacaExecutor:
         try:
             r = self._req("post", "/v2/orders", json={
                 "symbol": instrument, "qty": str(abs(units)),
-                "side": side, "type": "market", "time_in_force": "gtc"})
+                "side": side, "type": "market", "time_in_force": "gtc",
+                "client_order_id": "af-" + _uuid.uuid4().hex[:24]})  # idempotence sur retry
             d = self._json(r)
         except Exception as e:
             return ExecResult(error=str(e))
@@ -294,7 +397,8 @@ class AlpacaExecutor:
         try:
             r = self._req("post", "/v2/orders", json={
                 "symbol": sym, "qty": str(abs(units)),
-                "side": opp, "type": "market", "time_in_force": "gtc"})
+                "side": opp, "type": "market", "time_in_force": "gtc",
+                "client_order_id": "af-" + _uuid.uuid4().hex[:24]})  # idempotence sur retry
             d = self._json(r)
             return ExecResult(ok=bool(isinstance(d, dict) and d.get("id")), raw=d if isinstance(d, dict) else None)
         except Exception as e:

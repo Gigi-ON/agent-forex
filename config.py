@@ -87,14 +87,14 @@ PHASE2 = {
     # Somme des risques ouverts (toutes positions) <= x% du SOLDE TOTAL.
     "max_portfolio_heat_pct": 4.0,
     # Exposition nette par devise <= x% du solde (ne pas empiler des paris corrélés).
-    "max_ccy_heat_pct": 2.5,
+    "max_ccy_heat_pct": 4.0,
     # De-risking anti-martingale : on réduit la taille après des pertes
     # consécutives, on restaure après un gain. Multiplicateur = max(plancher,
     # 1 - pas * pertes_consécutives).
     "derisk_floor": 0.4, "derisk_step": 0.25,
     # Anti-overtrading.
-    "cooldown_min_after_loss": 60,        # pause par session après une perte
-    "max_trades_per_day": 8,              # plafond global de trades/jour
+    "cooldown_min_after_loss": 20,        # pause par session après une perte
+    "max_trades_per_day": 25,              # plafond global de trades/jour
     "min_minutes_between_same_pair": 15,  # espacement des entrées sur une même paire
 }
 
