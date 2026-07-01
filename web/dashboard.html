@@ -1637,8 +1637,8 @@
         +'<div class="sess-body">'
         +'<div class="sl1"><b>Session #'+s.id+'</b> · '+instD+' · Budget '+money(s.allocated)+'</div>'
         +'<div class="sl2">'+band+'<span class="sep">|</span><span class="spill '+stCls+'">'+stLabel+'</span><span class="sep">|</span><span class="mchip '+md[1]+'">'+md[0]+'</span>'
-          +'<span class="spnl '+cls+'">'+(pnl>=0?'+':'')+pnl.toFixed(2)+' $</span></div>'
-        +'<div class="sl3"><b>'+nt+'</b> trade'+(nt>1?'s':'')+(Math.abs(latent)>0.009?(' · latent '+(latent>=0?'+':'')+latent.toFixed(2)+' $'):'')+'</div>'
+          +'<span class="spnl '+cls+'">'+(pnl>=0?'+':'')+pnl.toFixed(3)+' $</span></div>'
+        +'<div class="sl3"><b>'+nt+'</b> trade'+(nt>1?'s':'')+(Math.abs(latent)>0.0005?(' · latent '+(latent>=0?'+':'')+latent.toFixed(3)+' $'):'')+'</div>'
         +'<div class="sl4">👁 '+(s.last_look?(s.last_look.note||'surveille'):'en attente de données')+'</div>'
         +ctrls+'</div></div>';
     }).join('');
