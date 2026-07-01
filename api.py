@@ -430,6 +430,11 @@ def _tick_loop():
             m = _gather_market()
             with _paper_lock:
                 _paper.tick(m)   # toujours : maj du heartbeat + expirations
+                try:
+                    import autopilot as _ap
+                    _ap.step(_paper)     # Autopilote : maintient N sessions sur marchés ouverts
+                except Exception:
+                    pass
                 _save_paper()
         except Exception:
             pass
@@ -838,6 +843,38 @@ def paper_open_session(body: dict = Body(...), user=Depends(require_user)):
         return {"ok": True, "session_id": s.id, "instrument": inst}
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.get("/api/autopilot")
+def autopilot_status(user=Depends(require_user)):
+    import autopilot as _ap
+    with _paper_lock:
+        return _ap.status(_paper)
+
+
+@app.post("/api/autopilot/toggle")
+def autopilot_toggle(body: dict = Body(default={}), user=Depends(require_user)):
+    import autopilot as _ap
+    on = bool(body.get("on", True))
+    _ap.toggle(on)
+    with _paper_lock:
+        return _ap.status(_paper)
+
+
+@app.post("/api/autopilot/config")
+def autopilot_config(body: dict = Body(default={}), user=Depends(require_user)):
+    import autopilot as _ap
+    _ap.set_config(body or {})
+    with _paper_lock:
+        return _ap.status(_paper)
+
+
+@app.post("/api/autopilot/kill")
+def autopilot_kill(user=Depends(require_user)):
+    import autopilot as _ap
+    _ap.kill()
+    with _paper_lock:
+        return _ap.status(_paper)
 
 
 @app.post("/api/ingenieur/analyze")

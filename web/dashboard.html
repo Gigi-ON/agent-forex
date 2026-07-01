@@ -928,6 +928,23 @@
     <section class="view" id="view-risque">
       <div class="card"><h3>Gestion du risque</h3><div class="cap" style="margin:3px 0 12px">Plafonds durs, exposition courante et verrou d'exécution.</div>
         <div id="pgRisque"><div class="cap">Chargement…</div></div></div>
+      <div class="card" style="margin-top:14px"><h3>Autopilote 24/7 <span class="cap" id="apState" style="font-weight:600"></span></h3>
+        <div class="cap" style="margin:2px 0 10px">Maintient des sessions sur les marchés <b>ouverts</b> (crypto 24/7 + forex en séance). <b>Paper only</b> — jamais le Réel. L'autopilote ouvre ; le risque dispose.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+          <button class="btn primary" id="apToggle" data-on="1">Activer</button>
+          <button class="btn" id="apKill" style="border-color:var(--coral);color:var(--coral)">Kill-switch</button>
+          <span class="cap" id="apActive"></span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field"><label class="cap">Mode</label><select id="apMode"><option value="pratique">Pratique</option><option value="apprentissage">Apprentissage</option></select></div>
+          <div class="field"><label class="cap">Trader</label><select id="apTrader"><option value="deterministe">Déterministe</option><option value="grok">Grok</option><option value="hybride">Hybride</option></select></div>
+          <div class="field"><label class="cap">Marchés</label><select id="apMarkets"><option value="both">Crypto + Forex</option><option value="crypto">Crypto</option><option value="forex">Forex</option></select></div>
+          <div class="field"><label class="cap">Sessions max</label><input id="apMax" type="number" min="1" max="5" style="width:70px"></div>
+          <div class="field"><label class="cap">Budget/session</label><input id="apBudget" type="number" min="10" style="width:90px"></div>
+          <button class="btn" id="apSave">Enregistrer</button>
+        </div>
+        <div id="apJournal" class="cap" style="margin-top:10px"></div>
+      </div>
       <div class="card" style="margin-top:14px"><h3>Ingénieur — optimiseur de config (Claude)</h3>
         <div class="cap" style="margin:2px 0 10px">Propose des ajustements PHASE1/PHASE2 pour mieux entrer sur le marché. <b>3 étapes</b> : Proposer → Réviser (backtest avant/après) → Appliquer. L'IA propose, <b>tu valides</b>. Jamais de secrets.</div>
         <button class="btn primary" id="ingAnalyze">Analyser ma config</button>
@@ -1472,6 +1489,32 @@
       ingLoad(); if(typeof loadStrategy==='function')loadStrategy(); return; }
   }); })();
   ingLoad();
+
+  /* ============ AUTOPILOTE 24/7 ============ */
+  async function apLoad(){ try{ var d=await API('/api/autopilot'); apRender(d); }catch(e){} }
+  function apRender(d){ if(!d)return; var c=d.config||{};
+    var st=$('apState'); if(st) st.textContent = d.enabled?'· ACTIF':'· arrêté';
+    var tg=$('apToggle'); if(tg){ tg.textContent=d.enabled?'Désactiver':'Activer'; tg.dataset.on=d.enabled?'0':'1'; }
+    var a=$('apActive'); if(a) a.textContent=(d.active_auto||0)+' session(s) auto active(s)';
+    if($('apMode'))$('apMode').value=c.mode||'pratique';
+    if($('apTrader'))$('apTrader').value=c.trader||'deterministe';
+    if($('apMarkets'))$('apMarkets').value=c.markets||'both';
+    if($('apMax'))$('apMax').value=c.max_concurrent||3;
+    if($('apBudget'))$('apBudget').value=c.budget_per_session||500;
+    var j=$('apJournal'); if(j){ var rows=(d.journal||[]).slice(0,8).map(function(x){
+      var t=new Date((x.ts||0)*1000).toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit'});
+      return '<div>'+t+' · '+(x.msg||'')+'</div>'; }).join('');
+      j.innerHTML=rows||'<div class="cap">Aucune activité pour l\'instant.</div>'; }
+  }
+  async function apPost(url,body){ try{ var h2=await authHeaders();
+    var d=await fetch(url,{method:'POST',headers:h2,body:JSON.stringify(body||{})}).then(function(x){return x.json();});
+    if(d)apRender(d); }catch(e){} }
+  document.addEventListener('click',function(ev){ var b=ev.target.closest&&ev.target.closest('#apToggle,#apKill,#apSave'); if(!b)return;
+    if(b.id==='apToggle'){ apPost('/api/autopilot/toggle',{on:b.dataset.on==='1'}); }
+    else if(b.id==='apKill'){ apPost('/api/autopilot/kill',{}); }
+    else if(b.id==='apSave'){ apPost('/api/autopilot/config',{mode:$('apMode').value,trader:$('apTrader').value,markets:$('apMarkets').value,max_concurrent:parseInt($('apMax').value,10),budget_per_session:parseFloat($('apBudget').value)}); }
+  });
+  apLoad(); setInterval(apLoad,15000);
   (function(){ var b=$('copBtn'); if(!b)return;
     b.onclick=async function(){
       var out=$('copOut'); if(out)out.textContent='Analyse en cours… (quelques secondes)'; b.disabled=true;
