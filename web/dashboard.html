@@ -1639,14 +1639,14 @@
         +'<div class="sl2">'+band+'<span class="sep">|</span><span class="spill '+stCls+'">'+stLabel+'</span><span class="sep">|</span><span class="mchip '+md[1]+'">'+md[0]+'</span>'
           +'<span class="spnl '+cls+'">'+(pnl>=0?'+':'')+pnl.toFixed(3)+' $</span></div>'
         +'<div class="sl3"><b>'+nt+'</b> trade'+(nt>1?'s':'')+(Math.abs(latent)>0.0005?(' · latent '+(latent>=0?'+':'')+latent.toFixed(3)+' $'):'')+'</div>'
-        +'<div class="sl4">👁 '+(s.last_look?(s.last_look.note||'surveille'):'en attente de données')+'</div>'
+        +'<div class="sl4">'+(s.last_look?('🔍 Surveille — '+(s.last_look.note||'analyse en cours')):(closed?'—':(paused?'⏸ En pause':'🔍 En veille — scan au fil des bougies (l\'inaction est normale)')))+'</div>'
         +ctrls+'</div></div>';
     }).join('');
   };
   (function(){ const sc=$('sessions'); if(!sc)return; sc.addEventListener('click', async function(e){
     const b=e.target.closest('button[data-sact]'); if(!b)return;
     const act=b.dataset.sact, id=b.dataset.id;
-    if(act==='stop'){ const np=(PAPER.positions||[]).filter(function(p){return p.session_id===id;}).length; if(!(await confirmModal('Stopper la session #'+id+' ? '+np+' position(s) seront fermées au prix courant.','Stopper'))) return; }
+    if(act==='stop'){ var sc2=(PAPER.sessions||[]).find(function(x){return x.id===id;})||{}; var np=(PAPER.positions||[]).filter(function(p){return p.session_id===id;}).length; var lat=((sc2.live_pnl!=null?sc2.live_pnl:(sc2.realized_pnl||0))-(sc2.realized_pnl||0)); var msg=np>0?('⚠️ '+np+' position(s) OUVERTE(S) : l\'arrêt les ferme au prix courant et ACTE le PnL latent ('+(lat>=0?'+':'')+lat.toFixed(3)+' $). Une session sans mouvement est NORMALE — elle attend un vrai setup. Stopper quand même ?'):('Aucune position ouverte : l\'arrêt ne fige aucun gain/perte. Stopper la session #'+id+' ?'); if(!(await confirmModal(msg,'Stopper'))) return; }
     const url=act==='stop'?'/api/paper/session/stop':(act==='resume'?'/api/paper/session/resume':'/api/paper/session/pause');
     const h=await authHeaders();
     const r=await fetch(url,{method:'POST',headers:h,body:JSON.stringify({session_id:id})}).then(function(x){return x.json();}).catch(function(){return {error:'endpoint indisponible'};});
