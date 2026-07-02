@@ -42,7 +42,11 @@ def ask(messages, model=None, session=None, timeout=45, reasoning=None):
             r = requests.post(ENDPOINT, json=payload, headers=headers, timeout=timeout)
         d = r.json() if hasattr(r, "json") else r
         if isinstance(d, dict) and d.get("error"):
-            return {"error": str(d["error"])[:200]}
+            err = d["error"]
+            msg = err.get("message") if isinstance(err, dict) else str(err)
+            return {"error": ("OpenRouter: " + str(msg))[:200]}
+        if not (isinstance(d, dict) and d.get("choices")):
+            return {"error": ("réponse sans 'choices' (modèle invalide/déprécié ?) : " + str(d)[:120])}
         txt = d["choices"][0]["message"]["content"]
         return {"answer": txt, "model": model}
     except Exception as e:
