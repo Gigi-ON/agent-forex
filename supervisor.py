@@ -153,7 +153,7 @@ class Supervisor:
         pf = portfolio or {}
         sized = rm.size_position(
             proposal=sig.proposal, equity_account_ccy=session.equity,
-            risk_base=(config.RISK_BASE_CCY if getattr(config, 'UNIFORM_SIZING', False) else 0.0),
+            risk_base=0.0,   # Option A : LIVE = % par session (profil). La mesure reste en R (backtest).
             quote_to_account_rate=quote_to_account,
             base_to_account_rate=base_to_account,
             current_atr=a_cur, average_atr=a_avg,

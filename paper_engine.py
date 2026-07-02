@@ -692,7 +692,7 @@ class PaperEngine:
             "running": self.running,
             "daily_halted": self.daily_halted,
             "day_pnl": round(self._day_pnl, 2),
-            "sizing": {"uniform": bool(getattr(__import__("config"), "UNIFORM_SIZING", False)),
+            "sizing": {"uniform": False, "live": "% par session (profil)", "measure": "R",
                        "base": float(getattr(__import__("config"), "RISK_BASE_CCY", 0) or 0)},
             "open_risk": round(self._open_risk(), 2),
             "broker_nav": self._broker_nav,

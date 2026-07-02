@@ -1,0 +1,10 @@
+adx=20 pull=1.0 fixes | regime BTC off/ON | 12 alts x 3 epoques : ['ETH/USD', 'XLM/USD', 'XRP/USD', 'ADA/USD', 'LINK/USD', 'DOGE/USD', 'LTC/USD', 'BCH/USD', 'XMR/USD', 'TRX/USD', 'ATOM/USD', 'ETC/USD']
+  [1/2] regime BTC = off ...
+  [2/2] regime BTC = ON ...
+regime BTC |   n    win%   esp(R)  total(R)   PF    robuste
+-----------+-----------------------------------------------
+ off       |  3129    50   +0.011  +33.44   1.03  19/36  <= sans regime
+ ON        |  2535    50   +0.010  +24.93   1.02  17/36
+
+Delta regime BTC : esp +0.010 R (-0.001 vs sans) | PF 1.03->1.02 | robuste 19/36 -> 17/36 | trades 3129 -> 2535
+>> Si 'ON' remonte nettement esperance/PF/robustesse au-dessus de 'off', le regime BTC apporte un edge. Sinon non.
