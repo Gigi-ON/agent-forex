@@ -108,6 +108,12 @@ class GrokSignalEngine:
                 import requests
                 r = requests.post(ENDPOINT, json=payload, headers=headers, timeout=30)
             d = r.json() if hasattr(r, "json") else r
+            if isinstance(d, dict) and d.get("error"):
+                err = d["error"]
+                msg = err.get("message") if isinstance(err, dict) else str(err)
+                return {"error": ("OpenRouter: " + str(msg))[:180]}
+            if not (isinstance(d, dict) and d.get("choices")):
+                return {"error": ("réponse sans 'choices' (modèle invalide ?) : " + str(d)[:120])}
             return {"text": d["choices"][0]["message"]["content"]}
         except Exception as e:
             return {"error": str(e)[:160]}

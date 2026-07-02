@@ -147,7 +147,7 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "x-ai/grok-2-1212")
 # Modèles par rôle (le copilote analyse en profondeur ; le chasseur va vite/pas cher)
 OPENROUTER_MODEL_ANALYSTE = os.environ.get("OPENROUTER_MODEL_ANALYSTE", "x-ai/grok-4.3")
-OPENROUTER_MODEL_CHASSEUR = os.environ.get("OPENROUTER_MODEL_CHASSEUR", "x-ai/grok-4.1-fast")
+OPENROUTER_MODEL_CHASSEUR = os.environ.get("OPENROUTER_MODEL_CHASSEUR", "x-ai/grok-4.3")
 # L'Ingénieur (méta-optimiseur de config) est orchestré par un Claude via OpenRouter.
 OPENROUTER_MODEL_INGENIEUR = os.environ.get("OPENROUTER_MODEL_INGENIEUR", "anthropic/claude-opus-4.7-fast")
 # Plafond d'appels Grok par jour (coût) — le chasseur se met en pause au-delà.
