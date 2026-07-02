@@ -1,0 +1,7 @@
+[2026-07-02T00:11:43Z] === Telechargement Kraken (Drive) ===
+usage: __main__.py [-h] [-V] [-O OUTPUT] [-q] [--proxy PROXY] [--speed SPEED]
+                   [--no-cookies] [--no-check-certificate] [--continue]
+                   [--folder] [--json] [--format FORMAT]
+                   [--user-agent USER_AGENT]
+                   url_or_id
+__main__.py: error: unrecognized arguments: --fuzzy

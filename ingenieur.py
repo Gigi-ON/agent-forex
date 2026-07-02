@@ -122,7 +122,9 @@ def apply(pid):
         return {"error": "proposition non validée (étape 2 requise)"}
     if not (p.get("diff", {}).get("PHASE1") or p.get("diff", {}).get("PHASE2")):
         return {"error": "diff vide — rien à appliquer"}
-    res = strategy.apply_diff(p["diff"], note=(p.get("rationale", "")[:60] or "ingenieur"), source="ingenieur")
+    res = strategy.apply_diff(p["diff"], note=(p.get("rationale", "")[:60] or "ingenieur"),
+                              source="ingenieur",
+                              extra={"rationale": p.get("rationale", ""), "expected_impact": p.get("expected_impact", "")})
     p["status"] = "appliquee"
     p["applied_version"] = res["version"]
     _save(p)
@@ -138,7 +140,7 @@ def backtest_impact(diff, instruments, fetch=None):
     cur = strategy.P1()
     prop = {**cur, **((diff or {}).get("PHASE1") or {})}
     TUN = ("adx_min", "pullback_atr_mult", "swing_lookback", "swing_buffer_atr",
-           "stop_min_atr", "stop_max_atr")
+           "stop_min_atr", "stop_max_atr", "vol_min_ratio", "vol_window")
 
     def eng(p1):
         e = SignalEngine(use_store=False)
@@ -161,10 +163,14 @@ def backtest_impact(diff, instruments, fetch=None):
                 "avg_win": round(sum(wins) / len(wins), 2) if wins else 0.0,
                 "avg_loss": round(sum(losses) / len(losses), 2) if losses else 0.0}
 
+    import config as _cfg
+    W = getattr(_cfg, "BACKTEST_WINDOW", 6000)
     out = []
     for inst in instruments:
         try:
             c = fetch(inst)
+            if len(c) > W:          # fenetre recente : backtest rapide sur donnee profonde
+                c = c[-W:]
         except Exception:
             continue
         out.append({"instrument": inst,

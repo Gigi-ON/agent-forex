@@ -35,7 +35,8 @@ class KrakenData:
         key = next((k for k in result if k != "last"), None)
         rows = result.get(key, []) if key else []
         return [{"time": datetime.fromtimestamp(int(x[0]), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                 "o": float(x[1]), "h": float(x[2]), "l": float(x[3]), "c": float(x[4])}
+                 "o": float(x[1]), "h": float(x[2]), "l": float(x[3]), "c": float(x[4]),
+                 "v": float(x[6]) if len(x) > 6 else 0.0}
                 for x in rows]
 
     def latest_quotes(self, displays):

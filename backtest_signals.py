@@ -20,7 +20,7 @@ def _need(eng):
     return max(eng.ema_slow, 2 * eng.adx_period) + eng.rsi_period + 2
 
 
-def backtest(candles, instrument="?", engine=None):
+def backtest(candles, instrument="?", engine=None, regime_map=None):
     eng = engine or SignalEngine()
     be_trig = _P1.get("be_trigger_R", 1.0)
     pt_trig = _P1.get("partial_trigger_R", 1.0)
@@ -70,7 +70,8 @@ def backtest(candles, instrument="?", engine=None):
                 trades.append({"R": round(total_R, 3), "conf": pos["conf"], "side": pos["side"]})
                 pos = None
         if not pos:
-            sig = eng.evaluate(instrument, candles[:i + 1])
+            _reg = regime_map.get(bar.get("t")) if regime_map else None
+            sig = eng.evaluate(instrument, candles[:i + 1], regime=_reg)
             if sig.proposal:
                 pr = sig.proposal
                 ru = abs(pr.entry_price - pr.stop_loss)
@@ -113,6 +114,23 @@ def report(trades, instrument):
     print(">> Espérance > 0 = rentable. On place la bande là où l'espérance reste positive.")
 
 
+def btc_regime_map(fetch=None, fast=50, slow=200):
+    """Carte {ts: 'up'/'down'} de la tendance BTC (EMA rapide vs lente sur 15min)."""
+    from indicators import ema
+    fetch = fetch or _fetch
+    c = fetch("BTC/USD")
+    if not c or len(c) < slow + 2:
+        return {}
+    closes = [x["c"] for x in c]
+    ef = ema(closes, fast); es = ema(closes, slow)
+    out = {}
+    for i in range(len(c)):
+        t = c[i].get("t")
+        if t is not None:
+            out[t] = "up" if ef[i] > es[i] else "down"
+    return out
+
+
 def _fetch(instrument, count=5000):
     """Historique PROFOND pour un échantillon statistiquement valable.
     Crypto : Parquet du pipeline d'historique (mois de données) si présent, sinon
@@ -123,7 +141,8 @@ def _fetch(instrument, count=5000):
         if f.exists():
             import pandas as pd
             df = pd.read_parquet(f).sort_values("ts")
-            return [{"o": float(r.o), "h": float(r.h), "l": float(r.l), "c": float(r.c)}
+            return [{"t": r.ts, "o": float(r.o), "h": float(r.h), "l": float(r.l), "c": float(r.c),
+                     "v": float(getattr(r, "volume", 0.0) or 0.0)}
                     for r in df.itertuples()]
         from kraken_data import KrakenData
         return KrakenData().get_history(instrument, interval=15)

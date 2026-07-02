@@ -1439,8 +1439,8 @@
     var vers=d.versions||[];
     if(lEl) lEl.innerHTML = vers.length ? vers.map(function(v){
       var keys=[]; ['PHASE1','PHASE2'].forEach(function(sec){ var o=(v.params||{})[sec]||{}; Object.keys(o).forEach(function(k){ keys.push(k+'='+o[k]); }); });
-      return '<div class="msg"><b>v'+v.version+'</b> <span class="cap">'+(v.note||v.source||'')+'</span><span class="cap" style="flex:1;margin:0 8px;opacity:.8">'+keys.slice(0,4).join(' · ')+'</span>'
-        +'<button class="btn" data-rollback="'+v.version+'">Restaurer</button></div>';
+      return '<div class="msg" style="flex-wrap:wrap"><b>v'+v.version+'</b> <span class="cap">'+(v.note||v.source||'')+'</span><span class="cap" style="flex:1;margin:0 8px;opacity:.8">'+keys.slice(0,4).join(' · ')+'</span>'
+        +'<button class="btn" data-rollback="'+v.version+'">Restaurer</button>'+'<details style="width:100%;margin-top:6px"><summary class="cap" style="cursor:pointer">Plus d\'informations</summary>'+'<div class="cap" style="padding:6px 0 2px;line-height:1.6">'+'<div><b>Activée :</b> '+((function(){try{return v.ts?new Date(v.ts).toLocaleString('fr-CA'):'—';}catch(e){return v.ts||'—';}})())+'</div>'+'<div><b>Source :</b> '+(v.source||'—')+'</div>'+'<div><b>Pourquoi :</b> '+(v.rationale||v.note||'—')+'</div>'+'<div><b>Impact attendu :</b> '+(v.expected_impact||'—')+'</div>'+'<div><b>Diff :</b> <code style="word-break:break-all">'+(v.diff?JSON.stringify(v.diff):(keys.join(' · ')||'—'))+'</code></div>'+'</div></details></div>';
     }).join('') : '<div class="cap">Aucune version enregistrée.</div>';
   }
   (function(){ var c=$('stratVersions'); if(!c)return; c.addEventListener('click', async function(e){
@@ -1453,7 +1453,7 @@
   loadStrategy(); setInterval(loadStrategy,30000);
   function ingDiff(diff){ var out=[]; ['PHASE1','PHASE2'].forEach(function(sec){ var o=(diff||{})[sec]||{}; Object.keys(o).forEach(function(k){ out.push(sec.replace('PHASE','P')+'.'+k+'='+o[k]); }); }); return out; }
   function ingBar(done,total,sub){ var pct=total?Math.round(100*done/total):0;
-    return '<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:7px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--blue);transition:width .3s"></div></div><span class="cap" style="min-width:120px;text-align:right">'+done+'/'+total+' · '+sub+'</span></div>'; }
+    return '<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:7px;background:var(--line);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--blue);transition:width .3s"></div></div><span class="cap" style="min-width:180px;text-align:right">'+pct+'% (reste '+(100-pct)+'%) · '+done+'/'+total+' · '+sub+'</span></div>'; }
   function ingRow(l,a,p,d){ return '<tr><td class="cap" style="padding:1px 0">'+l+'</td><td style="text-align:right">'+a+'</td><td style="text-align:right">'+p+'</td><td style="text-align:right">'+d+'</td></tr>'; }
   function ingReport(rows,note){ if(!rows.length)return '<div class="cap">Pas de données (marché/données indisponibles).</div>';
     var html='', sumA=0,sumP=0,cnt=0;
@@ -1613,12 +1613,17 @@
     renderSessions(); renderApprovals(); renderReports(); renderLearning();
   }
   resolveTrade=function(){}; updateLearning=function(){};
+  function ago(ts){ try{ var s=Math.max(0,(Date.now()-new Date(ts).getTime())/1000);
+    if(s<90) return 'il y a '+Math.round(s)+'s'; if(s<5400) return 'il y a '+Math.round(s/60)+'min'; return 'il y a '+Math.round(s/3600)+'h'; }catch(e){ return ''; } }
+  function _bilan(ss){ var W=0,L=0,net=0,tr=0; (ss||[]).forEach(function(s){ W+=s.wins||0; L+=s.losses||0; net+=(s.realized_pnl||0); tr+=(s.trades||0); });
+    var wr=(W+L)>0?Math.round(100*W/(W+L)):0;
+    return '<div class="cap" style="margin-bottom:10px;padding:9px 11px;background:#1E2A36;border-radius:9px">Bilan sessions : <b class="up">'+W+' gagnants</b> / <b class="down">'+L+' perdants</b> \u00b7 net <b class="'+(net>=0?'up':'down')+'">'+(net>=0?'+':'')+net.toFixed(2)+' $</b> \u00b7 win '+wr+'% \u00b7 '+tr+' trades total</div>'; }
   renderSessions=function(){
     const el=$('sessions'), em=$('sessEmpty'); if(!el)return;
     const ss=PAPER.sessions||[];
     if(em) em.style.display=ss.length?'none':'';
     const MODES={pratique:['Pratique','m-prat'],apprentissage:['Apprentissage','m-appr'],reel:['Réel','m-reel']};
-    el.innerHTML=ss.map(function(s){
+    el.innerHTML=_bilan(ss)+ss.map(function(s){
       const real=s.realized_pnl||0;
       const pnl=(s.live_pnl!=null?s.live_pnl:real);   // évolue avec la position ouverte
       const latent=pnl-real;
@@ -1637,10 +1642,11 @@
         +'<div class="sess-body">'
         +'<div class="sl1"><b>Session #'+s.id+'</b> · '+instD+' · Budget '+money(s.allocated)+'</div>'
         +'<div class="sl2">'+band+'<span class="sep">|</span><span class="spill '+stCls+'">'+stLabel+'</span><span class="sep">|</span><span class="mchip '+md[1]+'">'+md[0]+'</span>'
+          +((closed&&nt>0)?('<span class="sep">|</span><span class="'+((real>0.0005)?'up':((real<-0.0005)?'down':''))+'" style="font-weight:800">'+((real>0.0005)?'\u2713 GAIN':((real<-0.0005)?'\u2717 PERTE':'= NEUTRE'))+'</span>'):'')
           +'<span class="spnl '+cls+'">'+(pnl>=0?'+':'')+pnl.toFixed(3)+' $</span></div>'
-        +'<div class="sl3"><b>'+nt+'</b> trade'+(nt>1?'s':'')+(Math.abs(latent)>0.0005?(' · latent '+(latent>=0?'+':'')+latent.toFixed(3)+' $'):'')+'</div>'
+        +'<div class="sl3">'+(nt===0?'Aucun trade — en veille':('<b>'+nt+'</b> trade'+(nt>1?'s':'')+' · <span class="up">'+(s.wins||0)+'g</span> / <span class="down">'+(s.losses||0)+'p</span> · net '+(real>=0?'+':'')+real.toFixed(3)+' $'))+((Math.abs(latent)>0.0005)?(' · latent '+(latent>=0?'+':'')+latent.toFixed(3)+' $'):'')+'</div>'
         +'<div class="sl4">'+(s.last_look?('🔍 Surveille — '+(s.last_look.note||'analyse en cours')):(closed?'—':(paused?'⏸ En pause':'🔍 En veille — scan au fil des bougies (l\'inaction est normale)')))+'</div>'
-        +ctrls+'</div></div>';
+        +(s.last_event?('<div class="sl4">↩ dernier : '+String(s.last_event.pair).replace('_','/')+' '+s.last_event.reason+' '+(s.last_event.R>=0?'+':'')+s.last_event.R+'R ('+(s.last_event.pnl>=0?'+':'')+s.last_event.pnl+' $) · '+ago(s.last_event.ts)+(s.has_position?' · position en cours':'')+'</div>'):'')+ctrls+'</div></div>';
     }).join('');
   };
   (function(){ const sc=$('sessions'); if(!sc)return; sc.addEventListener('click', async function(e){

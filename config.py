@@ -64,6 +64,8 @@ HARD_LIMITS = {
 # toutes les sessions), et non sur le budget de la session. Ainsi, à profil égal,
 # chaque trade risque le MÊME montant -> R et $ alignés, comparables.
 UNIFORM_SIZING = os.environ.get("UNIFORM_SIZING", "1") == "1"
+# Fenetre (nb de dernieres bougies) pour les backtests rapides (Ingenieur) : evite O(n^2) sur 379k bougies.
+BACKTEST_WINDOW = int(os.environ.get("BACKTEST_WINDOW", "6000"))
 RISK_BASE_CCY = float(os.environ.get("RISK_BASE_CCY", "2000"))   # capital de référence
 
 # --- Phase 1 : qualité de décision (pratiques de traders aguerris) ----------
@@ -87,6 +89,10 @@ PHASE1 = {
     "max_spread_frac": 0.30,
     # Garde de session (Niveau 3) : pas d'auto-validation forex hors-session.
     "session_guard": True,
+    # Filtre volume (0 = desactive) : n'entrer que si volume >= x sa moyenne.
+    "vol_min_ratio": 0.0, "vol_window": 20,
+    # Regime BTC (0=off) : un alt ne trade que dans le sens de la tendance BTC.
+    "btc_regime_gate": 0,
 }
 
 # --- Phase 2 : survie & portefeuille (gestion globale du risque) ------------

@@ -1,0 +1,22 @@
+adx=20 pull=1.0 fixes | filtre volume [0.0, 1.0, 1.25, 1.5, 2.0, 3.0] | 12 paires x 3 epoques : ['BTC/USD', 'ETH/USD', 'XLM/USD', 'XRP/USD', 'ADA/USD', 'LINK/USD', 'DOGE/USD', 'LTC/USD', 'BCH/USD', 'XMR/USD', 'TRX/USD', 'ATOM/USD']
+  [1/6] filtre volume = 0.00x ...
+  [2/6] filtre volume = 1.00x ...
+  [3/6] filtre volume = 1.25x ...
+  [4/6] filtre volume = 1.50x ...
+  [5/6] filtre volume = 2.00x ...
+  [6/6] filtre volume = 3.00x ...
+volume |   n    win%   esp(R)  total(R)   PF    robuste
+-------+---------------------------------------------------
+ 0.00x |  3156    50   -0.001  -2.35   1.0   17/36  <= sans filtre
+ 1.00x |  1795    50   +0.001  +1.30   1.0   14/36
+ 1.25x |  1527    50   -0.007  -10.82   0.98  19/36
+ 1.50x |  1325    50   -0.006  -8.16   0.99  18/36
+ 2.00x |  1002    50   +0.006  +6.23   1.02  19/36
+ 3.00x |   615    51   +0.031  +19.35   1.08  21/36
+
+== TOP 3 (robustesse puis esperance ; n>=15) ==
+  volume>=3.00x -> esp +0.031 R | 615 trades | win 51% | PF 1.08 | +sur 21/36 epoques | Delta +0.032 vs sans filtre
+  volume>=2.00x -> esp +0.006 R | 1002 trades | win 50% | PF 1.02 | +sur 19/36 epoques | Delta +0.007 vs sans filtre
+  volume>=1.25x -> esp -0.007 R | 1527 trades | win 50% | PF 0.98 | +sur 19/36 epoques | Delta -0.006 vs sans filtre
+
+>> Si aucun seuil de volume ne remonte nettement l'esperance/PF au-dessus de 'sans filtre', le volume n'apporte pas d'edge ici.

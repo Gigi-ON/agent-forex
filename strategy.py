@@ -25,7 +25,7 @@ _CACHE = {"params": None}          # overrides courants (dict {PHASE1,PHASE2})
 ALLOW = {"PHASE1": set(config.PHASE1.keys()), "PHASE2": set(config.PHASE2.keys())}
 BOUNDS = {
     "PHASE1": {
-        "adx_min": (5, 40), "adx_period": (5, 30), "htf_factor": (2, 16),
+        "vol_min_ratio": (0.0, 5.0), "btc_regime_gate": (0, 1), "vol_window": (5, 100), "adx_min": (5, 40), "adx_period": (5, 30), "htf_factor": (2, 16),
         "htf_ema_fast": (5, 60), "htf_ema_slow": (20, 200),
         "pullback_atr_mult": (0.3, 4.0), "swing_lookback": (3, 30),
         "swing_buffer_atr": (0.0, 2.0), "stop_min_atr": (1.0, 5.0),
@@ -108,7 +108,7 @@ def versions():
     return h if isinstance(h, list) else []
 
 
-def set_overrides(overrides, note="", source="manuel"):
+def set_overrides(overrides, note="", source="manuel", extra=None):
     """Écrit un nouvel ensemble d'overrides validés + crée une version."""
     clean, dropped = validate(overrides)
     st = _read(STORE, {})
@@ -119,17 +119,24 @@ def set_overrides(overrides, note="", source="manuel"):
         _write(STORE, new)
         _CACHE["params"] = clean
         h = versions()
-        h.append({"version": ver, "ts": new["updated"], "params": clean,
-                  "note": note, "source": source})
+        _entry = {"version": ver, "ts": new["updated"], "params": clean,
+                  "note": note, "source": source}
+        if extra:
+            _entry.update({k: v for k, v in extra.items() if k in ("diff", "rationale", "expected_impact")})
+        h.append(_entry)
         _write(HIST, h[-MAX_VERSIONS:])
     return {"version": ver, "applied": clean, "dropped": dropped}
 
 
-def apply_diff(diff, note="", source="ingenieur"):
-    """Fusionne un diff par-dessus les overrides courants, valide, versionne."""
+def apply_diff(diff, note="", source="ingenieur", extra=None):
+    """Fusionne un diff par-dessus les overrides courants, valide, versionne.
+    Stocke aussi le diff (et rationale/impact via `extra`) dans l'historique de version."""
     merged = {"PHASE1": {**_store().get("PHASE1", {}), **((diff or {}).get("PHASE1", {}))},
               "PHASE2": {**_store().get("PHASE2", {}), **((diff or {}).get("PHASE2", {}))}}
-    return set_overrides(merged, note=note, source=source)
+    ex = {"diff": diff}
+    if extra:
+        ex.update(extra)
+    return set_overrides(merged, note=note, source=source, extra=ex)
 
 
 def rollback(version):

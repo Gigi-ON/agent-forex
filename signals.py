@@ -71,6 +71,11 @@ class SignalEngine:
         self.swing_buffer_atr = _P1.get("swing_buffer_atr", 0.5)
         self.stop_min_atr = _P1.get("stop_min_atr", 2.0)
         self.stop_max_atr = _P1.get("stop_max_atr", 4.0)
+        # Filtre volume : n'entrer que si le volume de la bougie >= vol_min_ratio x sa moyenne.
+        # 0 = desactive (retro-compatible ; ignore si les bougies n'ont pas de volume).
+        self.vol_min_ratio = _P1.get("vol_min_ratio", 0.0)
+        self.vol_window = _P1.get("vol_window", 20)
+        self.btc_regime_gate = _P1.get("btc_regime_gate", 0)
 
     def _htf_trend(self, candles):
         """Tendance de l'horizon supérieur. Renvoie 'up'/'down'/None (indispo)."""
@@ -82,7 +87,7 @@ class SignalEngine:
         es = ema(closes, self.htf_ema_slow)
         return "up" if ef[-1] > es[-1] else "down"
 
-    def evaluate(self, instrument: str, candles: list) -> Signal:
+    def evaluate(self, instrument: str, candles: list, regime=None) -> Signal:
         if self.use_store:
             try:
                 import strategy as _S
@@ -93,6 +98,9 @@ class SignalEngine:
                 self.swing_buffer_atr = _p1.get("swing_buffer_atr", self.swing_buffer_atr)
                 self.stop_min_atr = _p1.get("stop_min_atr", self.stop_min_atr)
                 self.stop_max_atr = _p1.get("stop_max_atr", self.stop_max_atr)
+                self.vol_min_ratio = _p1.get("vol_min_ratio", self.vol_min_ratio)
+                self.vol_window = _p1.get("vol_window", self.vol_window)
+                self.btc_regime_gate = _p1.get("btc_regime_gate", self.btc_regime_gate)
             except Exception:
                 pass
         notes = []
@@ -151,12 +159,34 @@ class SignalEngine:
         else:
             notes.append("Horizon supérieur indisponible (historique court) : filtre ignoré.")
 
+        # 3bis) RÉGIME BTC : un alt ne trade que dans le sens de la tendance BTC (input croisé).
+        if self.btc_regime_gate and regime in ("up", "down"):
+            base = instrument.replace("/", "_").split("_")[0].upper()
+            if base not in ("BTC", "XBT"):
+                if (side == "buy" and regime != "up") or (side == "sell" and regime != "down"):
+                    notes.append("Régime BTC %s non aligné avec %s : pas de trade." % (regime, side))
+                    return Signal(instrument, None, 0.0, notes)
+                notes.append("Aligné au régime BTC (%s)." % regime)
+
         # 4) ENTRÉE SUR REPLI : refuser si trop étendu par rapport à l'EMA rapide.
         extension = (price - ef[-1]) if side == "buy" else (ef[-1] - price)
         if extension > self.pullback_atr_mult * atr_cur:
             notes.append(f"Prix trop étendu ({extension / atr_cur:.1f} ATR de l'EMA) : on attend un repli.")
             return Signal(instrument, None, 0.0, notes)
         notes.append(f"Proche de l'EMA ({extension / atr_cur:.1f} ATR) : entrée sur repli OK.")
+
+        # 4bis) FILTRE DE VOLUME : le mouvement doit etre confirme par le volume.
+        if self.vol_min_ratio and self.vol_min_ratio > 0:
+            vv = [c.get("v") for c in candles[-(self.vol_window + 1):]]
+            vv = [x for x in vv if x is not None]
+            if len(vv) >= 5:
+                avg = sum(vv[:-1]) / max(1, len(vv) - 1)
+                cur_v = vv[-1]
+                if avg > 0 and cur_v < self.vol_min_ratio * avg:
+                    notes.append("Volume %.2fx < seuil %.2fx : pas de confirmation." % (cur_v / avg, self.vol_min_ratio))
+                    return Signal(instrument, None, 0.0, notes)
+                if avg > 0:
+                    notes.append("Volume %.2fx la moyenne : confirme." % (cur_v / avg))
 
         # 5) STOP STRUCTUREL borné, puis objectif au ratio visé.
         if side == "buy":

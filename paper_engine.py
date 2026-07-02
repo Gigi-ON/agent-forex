@@ -118,6 +118,7 @@ class PaperEngine:
         self._win_streak = 0
         self._trades_today = 0          # plafond de trades/jour
         self._last_loss_time = {}       # session_id -> datetime de la dernière perte
+        self._sess_stats = {}           # session_id -> {wins, losses, last:{pair,reason,pnl,R,ts}}
         self._last_entry_time = {}      # pair -> datetime de la dernière entrée
         self._broker_nav = {}           # venue -> NAV rapporté par le courtier (Apprentissage/Réel)
 
@@ -660,6 +661,14 @@ class PaperEngine:
         elif pnl > 0:
             self._win_streak += 1
             self._loss_streak = 0
+        _st = self._sess_stats.setdefault(pos.session_id, {"wins": 0, "losses": 0, "last": None})
+        if pnl > 0:
+            _st["wins"] += 1
+        elif pnl < 0:
+            _st["losses"] += 1
+        _st["last"] = {"pair": pos.pair, "reason": reason, "pnl": pnl,
+                       "R": round(pnl / pos.initial_risk, 2) if pos.initial_risk > 0 else 0.0,
+                       "ts": now.strftime("%Y-%m-%dT%H:%M:%SZ")}
         self._log("trade", "%s %s · %+.2f$" % (pos.pair, reason, pnl))
         self._close_broker(pos)
         self.positions.pop(pos.id, None)
@@ -701,6 +710,10 @@ class PaperEngine:
                 "paused": getattr(s, "paused", False),
                 "last_look": self.supervisor.last_look.get(s.id),
                 "state": s.state.value if hasattr(s.state, "value") else s.state,
+                "wins": self._sess_stats.get(s.id, {}).get("wins", 0),
+                "losses": self._sess_stats.get(s.id, {}).get("losses", 0),
+                "last_event": self._sess_stats.get(s.id, {}).get("last"),
+                "has_position": any(x.session_id == s.id for x in self.positions.values()),
             } for s in self.manager.sessions.values()],
             "pending": [{
                 "id": p.id, "session_id": p.session_id, "pair": p.pair,
@@ -754,6 +767,7 @@ class PaperEngine:
             "day_start_balance": self._day_start_balance,
             "activity": self.activity[-200:],
             "last_tick": self.last_tick,
+            "sess_stats": self._sess_stats,
         }
 
     def load_state(self, d):
@@ -798,3 +812,4 @@ class PaperEngine:
         self._day_start_balance = d.get("day_start_balance", self.manager.balance)
         self.activity = d.get("activity", [])
         self.last_tick = d.get("last_tick")
+        self._sess_stats = d.get("sess_stats", {})
