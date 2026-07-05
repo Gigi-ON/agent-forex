@@ -1636,7 +1636,8 @@
       const bandCls=closed?'st-stop':(paused?'st-pause':'st-run');
       const md=MODES[s.mode||'pratique']||MODES.pratique;
       const nt=s.trades||0;
-      const ctrls=closed?'':('<div style="display:flex;gap:8px;margin-top:2px">'+'<button class="btn" data-sact="'+(paused?'resume':'pause')+'" data-id="'+s.id+'">'+(paused?'▶ Reprendre':'⏸ Pause')+'</button>'+'<button class="btn" data-sact="stop" data-id="'+s.id+'">⏹ Stop</button></div>');
+      const empBtn=(!closed&&pnl>0.0005)?('<button class="btn" data-sact="empocher" data-id="'+s.id+'" style="background:#1E6F3E;border-color:#2E9E5B;color:#eafff1">\uD83D\uDCB0 Empocher le gain</button>'):'';
+      const ctrls=closed?'':('<div style="display:flex;gap:8px;margin-top:2px;flex-wrap:wrap">'+empBtn+'<button class="btn" data-sact="'+(paused?'resume':'pause')+'" data-id="'+s.id+'">'+(paused?'▶ Reprendre':'⏸ Pause')+'</button>'+'<button class="btn" data-sact="stop" data-id="'+s.id+'">⏹ Stop</button></div>');
       return '<div class="sess-card'+(closed?' is-stop':(paused?' is-pause':''))+'">'
         +'<div class="sband '+bandCls+'">'+(!closed&&!paused?'<span class="scan"></span>':'')+'</div>'
         +'<div class="sess-body">'
@@ -1649,9 +1650,48 @@
         +(s.last_event?('<div class="sl4">↩ dernier : '+String(s.last_event.pair).replace('_','/')+' '+s.last_event.reason+' '+(s.last_event.R>=0?'+':'')+s.last_event.R+'R ('+(s.last_event.pnl>=0?'+':'')+s.last_event.pnl+' $) · '+ago(s.last_event.ts)+(s.has_position?' · position en cours':'')+'</div>'):'')+ctrls+'</div></div>';
     }).join('');
   };
+  async function empocherGain(id){
+    const s=(PAPER.sessions||[]).find(function(x){return x.id===id;})||{};
+    const real=s.realized_pnl||0; const pnl=(s.live_pnl!=null?s.live_pnl:real); const latent=pnl-real;
+    const np=(PAPER.positions||[]).filter(function(p){return p.session_id===id;}).length;
+    const alloc=s.allocated||0; const gain=pnl;
+    const msg='Empocher '+(gain>=0?'+':'')+gain.toFixed(2)+' $'+(np>0?(' (dont '+latent.toFixed(2)+' $ latent sur '+np+' position(s) ferm\u00e9e(s) au march\u00e9)'):'')+' et lib\u00e9rer '+money(alloc)+' de budget ?';
+    if(!(await confirmModal(msg,'Empocher'))) return;
+    const h=await authHeaders();
+    const r=await fetch('/api/paper/session/stop',{method:'POST',headers:h,body:JSON.stringify({session_id:id})}).then(function(x){return x.json();}).catch(function(){return {error:'API'};});
+    if(r&&r.error){ botAlert('rejected','Stop impossible',r.error,'red'); return; }
+    botAlert('info','Gain empoch\u00e9','#'+id+' ferm\u00e9e \u00b7 '+(gain>=0?'+':'')+gain.toFixed(2)+' $ dans le solde','');
+    await refreshPaper();
+    const ch=await reenchainerModal(s, alloc, gain); if(!ch) return;
+    const body={budget:ch.budget, asset:(s.instrument&&s.instrument.indexOf('/')>=0)?'crypto':'forex', instrument:s.instrument, profile:(s.risk_level||'reserve'), risk_level:(s.risk_level||'reserve'), mode:(s.mode||'pratique'), trader:(s.trader||'deterministe')};
+    const r2=await fetch('/api/paper/session',{method:'POST',headers:h,body:JSON.stringify(body)}).then(function(x){return x.json();}).catch(function(){return {error:'API'};});
+    if(r2&&r2.error){ botAlert('rejected','Ouverture impossible',r2.error,'red'); } else { botAlert('info','Nouvelle session','#'+r2.session_id+' \u00b7 '+String(s.instrument||'').replace('_','/')+' \u00b7 '+money(ch.budget),''); }
+    refreshPaper();
+  }
+  function reenchainerModal(s, alloc, gain){
+    return new Promise(function(resolve){
+      const avail=(PAPER.available!=null?PAPER.available:1e9);
+      const capB=Math.min(alloc+Math.max(0,gain), avail);
+      const ov=document.createElement('div');
+      ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999';
+      ov.innerHTML='<div style="background:#1E2A36;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:20px;width:340px;color:#e6edf3;font:14px sans-serif">'
+        +'<div style="font-weight:700;margin-bottom:4px">R\u00e9encha\u00eener une session ?</div>'
+        +'<div style="color:#8b93a3;font-size:12px;margin-bottom:14px">Gain empoch\u00e9 : <b style="color:#37d67a">+'+gain.toFixed(2)+' $</b> \u00b7 Disponible : '+money(avail)+'</div>'
+        +'<label style="font-size:12px;color:#8b93a3">Budget nouvelle session ('+String(s.instrument||'').replace('_','/')+')</label>'
+        +'<input id="_rbud" type="number" value="'+alloc+'" style="width:100%;margin:4px 0 10px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:#141b24;color:#e6edf3">'
+        +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:16px"><input type="checkbox" id="_rcap"> Capitaliser le gain (budget = '+money(capB)+')</label>'
+        +'<div style="display:flex;gap:8px;justify-content:flex-end"><button id="_rno" class="btn">Garder en cash</button><button id="_ryes" class="btn" style="background:#1E6F3E;border-color:#2E9E5B">Ouvrir la session</button></div></div>';
+      document.body.appendChild(ov);
+      const bud=ov.querySelector('#_rbud'), cap=ov.querySelector('#_rcap');
+      cap.onchange=function(){ bud.value= cap.checked? capB.toFixed(2) : alloc; };
+      ov.querySelector('#_rno').onclick=function(){ ov.remove(); resolve(null); };
+      ov.querySelector('#_ryes').onclick=function(){ var v=parseFloat(bud.value)||0; ov.remove(); resolve(v>0?{budget:Math.min(v,avail)}:null); };
+    });
+  }
   (function(){ const sc=$('sessions'); if(!sc)return; sc.addEventListener('click', async function(e){
     const b=e.target.closest('button[data-sact]'); if(!b)return;
     const act=b.dataset.sact, id=b.dataset.id;
+    if(act==='empocher'){ await empocherGain(id); return; }
     if(act==='stop'){ var sc2=(PAPER.sessions||[]).find(function(x){return x.id===id;})||{}; var np=(PAPER.positions||[]).filter(function(p){return p.session_id===id;}).length; var lat=((sc2.live_pnl!=null?sc2.live_pnl:(sc2.realized_pnl||0))-(sc2.realized_pnl||0)); var msg=np>0?('⚠️ '+np+' position(s) OUVERTE(S) : l\'arrêt les ferme au prix courant et ACTE le PnL latent ('+(lat>=0?'+':'')+lat.toFixed(3)+' $). Une session sans mouvement est NORMALE — elle attend un vrai setup. Stopper quand même ?'):('Aucune position ouverte : l\'arrêt ne fige aucun gain/perte. Stopper la session #'+id+' ?'); if(!(await confirmModal(msg,'Stopper'))) return; }
     const url=act==='stop'?'/api/paper/session/stop':(act==='resume'?'/api/paper/session/resume':'/api/paper/session/pause');
     const h=await authHeaders();
