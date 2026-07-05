@@ -1,0 +1,147 @@
+"""
+CARRY PAPER delta-neutre sur l'univers perps KRAKEN-US (tourne 24/7 via cron horaire).
+Chaque tick : accumule le funding sur les positions ouvertes (short perp recoit le funding+),
+mark-to-market le basis (long spot + short perp). Rebalance periodique : sélectionne les perps
+au funding NET du cout positif, équi-pondère. P&L paper = signal honnête de "prêt a deployer".
+Donnees Kraken publiques (sans cle). N'ecrit que data/carry_paper/. Aucun ordre reel.
+
+>> Elargir l'univers : ajouter la base a US_UNIVERSE quand Kraken-US liste un nouveau perp.
+"""
+import json
+import os
+import time
+import urllib.request
+
+OUT = "data/carry_paper"
+STATE = os.path.join(OUT, "state.json")
+FUT = "https://futures.kraken.com/derivatives/api/v3/tickers"
+SPOT = "https://api.kraken.com/0/public/Ticker"
+
+CAPITAL = 100000.0        # capital paper
+COST_BP = 40.0            # aller-retour majors (perp+spot), realiste
+REBAL_H = 24.0            # rebalance quotidien (faible turnover)
+FUND_PER_H = 1.0          # Kraken PF_ funding horaire
+
+# univers tradable Kraken-US (9 majors aujourd'hui) -> a elargir a mesure des listings
+US_UNIVERSE = ["BTC", "ETH", "SOL", "XRP", "ADA", "LINK", "DOGE", "LTC", "AVAX"]
+
+
+def kbase(b):
+    return {"BTC": "XBT", "DOGE": "XDG"}.get(b, b)
+
+
+def _get(url, tries=3):
+    for k in range(tries):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "carry-paper/1.0"}), timeout=25) as r:
+                return json.loads(r.read().decode())
+        except Exception:
+            if k == tries - 1:
+                raise
+            time.sleep(1.5 * (k + 1))
+
+
+def fetch_market():
+    """{base: {funding(horaire), perp(mark), spot}} pour l'univers US disponible."""
+    fut = _get(FUT).get("tickers", [])
+    fmap = {t.get("symbol", "").upper(): t for t in fut}
+    spot_pairs = ",".join(kbase(b) + "USD" for b in US_UNIVERSE)
+    sres = (_get(SPOT + "?pair=" + spot_pairs).get("result", {}) or {})
+
+    def spot_of(b):
+        want = kbase(b) + "USD"
+        for k, v in sres.items():
+            if k.replace("X", "").replace("Z", "").upper().startswith(kbase(b).upper()) or k.upper() == want or want in k.upper():
+                try:
+                    return float(v["c"][0])
+                except Exception:
+                    pass
+        return None
+
+    out = {}
+    for b in US_UNIVERSE:
+        pf = ("PF_" + kbase(b) + "USD").upper()
+        t = fmap.get(pf)
+        sp = spot_of(b)
+        if not t or sp is None:
+            continue
+        fr = t.get("fundingRate")
+        mark = t.get("markPrice") or t.get("last")
+        if fr is None or mark is None:
+            continue
+        out[b] = {"funding": float(fr), "perp": float(mark), "spot": float(sp)}
+    return out
+
+
+def load_state():
+    if os.path.exists(STATE):
+        return json.load(open(STATE))
+    now = time.time()
+    return {"capital": CAPITAL, "start_ts": now, "last_tick": now, "last_rebal": 0.0,
+            "realized_pnl": 0.0, "positions": []}
+
+
+def pos_value(p, mkt):
+    """funding accumule + P&L des deux jambes (long spot, short perp) - cout d'entree."""
+    m = mkt.get(p["base"])
+    leg = 0.0
+    if m:
+        leg = p["notional"] * (m["spot"] / p["spot_entry"] - 1.0) \
+            + p["notional"] * (1.0 - m["perp"] / p["perp_entry"])
+    return p["funding_acc"] + leg - p["cost_paid"]
+
+
+def tick():
+    os.makedirs(OUT, exist_ok=True)
+    st = load_state()
+    mkt = fetch_market()
+    now = time.time()
+    dh = max(0.0, (now - st["last_tick"]) / 3600.0)
+
+    # 1) accumuler le funding sur les positions ouvertes (short recoit funding+)
+    for p in st["positions"]:
+        m = mkt.get(p["base"])
+        if m:
+            p["funding_acc"] += p["notional"] * m["funding"] * (dh * FUND_PER_H)
+
+    # 2) rebalance si du : on GARDE les positions au funding encore positif, on ne paie
+    #    le cout qu'a l'entree/sortie (amorti sur la duree de detention). Slot fixe par nom.
+    slot = st["capital"] / len(US_UNIVERSE)
+    half = slot * (COST_BP / 2.0) / 1e4              # cout une jambe (entree ou sortie)
+    due = (now - st.get("last_rebal", 0.0)) >= REBAL_H * 3600.0 or not st["positions"]
+    if due and mkt:
+        target = {b for b, m in mkt.items() if m["funding"] > 0}   # short-perp interessant si funding+
+        keep = []
+        for p in st["positions"]:
+            if p["base"] in target and p["base"] in mkt:
+                keep.append(p)                        # on garde (funding continue de tomber)
+            else:
+                st["realized_pnl"] += pos_value(p, mkt) - half      # on ferme : + cout de sortie
+        st["positions"] = keep
+        have = {p["base"] for p in st["positions"]}
+        for b in target - have:                       # on ouvre les nouveaux
+            m = mkt[b]
+            st["positions"].append({"base": b, "notional": slot,
+                                    "spot_entry": m["spot"], "perp_entry": m["perp"],
+                                    "funding_acc": 0.0, "cost_paid": half})
+        st["last_rebal"] = now
+
+    # 3) equity + reporting
+    open_val = sum(pos_value(p, mkt) for p in st["positions"])
+    equity = st["capital"] + st["realized_pnl"] + open_val
+    elapsed_d = (now - st["start_ts"]) / 86400.0
+    net_ann = 0.0 if elapsed_d < 2.0 else (equity / st["capital"] - 1.0) / (elapsed_d / 365.25) * 100.0
+    st["last_tick"] = now
+    st["equity"] = round(equity, 2)
+    st["net_ann_pct"] = round(net_ann, 2)
+    st["universe_size"] = len(mkt)
+    json.dump(st, open(STATE, "w"), indent=2)
+    na = "demarrage" if elapsed_d < 2.0 else "%+.1f%%/an" % net_ann
+    print("%s | univers %d | positions %d | equity %.2f (%+.2f) | net %s"
+          % (time.strftime("%Y-%m-%d %H:%M"), len(mkt), len(st["positions"]),
+             equity, equity - st["capital"], na), flush=True)
+    return st
+
+
+if __name__ == "__main__":
+    tick()
