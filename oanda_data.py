@@ -21,6 +21,14 @@ def rfc3339(dt):
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _clean_ts(s):
+    """OANDA renvoie parfois des nanosecondes ('...00.000000000Z') que oandapyV20 ne sait pas
+    reparser en 'from'. On tronque a la seconde (format RFC3339 accepte)."""
+    if isinstance(s, str) and "." in s:
+        return s.split(".")[0] + "Z"
+    return s
+
+
 class OandaData(DataProvider):
     def __init__(self, cache: Cache = None, account_currency=None, account="practice"):
         self.cache = cache or Cache()
@@ -74,7 +82,7 @@ class OandaData(DataProvider):
             if not c.get("complete"):
                 continue
             m = c["mid"]
-            out.append({"time": c["time"], "o": float(m["o"]), "h": float(m["h"]),
+            out.append({"time": _clean_ts(c["time"]), "o": float(m["o"]), "h": float(m["h"]),
                         "l": float(m["l"]), "c": float(m["c"])})
         return out
 
@@ -100,7 +108,7 @@ class OandaData(DataProvider):
     def update_history(self, pair, granularity="M15"):
         """Incrémental : ne télécharge que les bougies depuis la dernière en cache."""
         pair = normalize_pair(pair)
-        last = self.cache.last_candle_time(pair, granularity)
+        last = _clean_ts(self.cache.last_candle_time(pair, granularity))
         start = last or rfc3339(datetime.now(timezone.utc) - timedelta(days=90))
         return self.fetch_history(pair, granularity, start=start)
 
