@@ -1090,3 +1090,36 @@ def paper_session_stop(body: dict = Body(...), user=Depends(require_user)):
     with _paper_lock:
         _paper.stop_session(body.get("session_id"), _gather_market()); _save_paper()
     return {"ok": True}
+
+
+@app.get("/api/datacenter")
+def datacenter():
+    import json as _j
+    from pathlib import Path as _P
+    d = _P(__file__).parent / "data"
+    def rd(p):
+        try:
+            return _j.loads((d / p).read_text())
+        except Exception:
+            return None
+    manifests = {}
+    for name in ["funding", "funding_multi", "capacity"]:
+        m = rd(name + "/_manifest.json")
+        if m:
+            manifests[name] = {"source": m.get("source"), "symbols": m.get("symbols"), "updated": m.get("updated")}
+    return {"health": rd("_health.json"), "updated": rd("_updated.json"), "manifests": manifests}
+
+
+@app.get("/api/carry")
+def carry():
+    import json as _j
+    from pathlib import Path as _P
+    try:
+        st = _j.loads((_P(__file__).parent / "data" / "carry_paper" / "state.json").read_text())
+    except Exception:
+        return {"available": False}
+    return {"available": True, "equity": st.get("equity"), "capital": st.get("capital"),
+            "net_ann_pct": st.get("net_ann_pct"), "universe_size": st.get("universe_size"),
+            "pairs_control": st.get("pairs_control"), "realized_pnl": round(st.get("realized_pnl", 0), 2),
+            "last_tick": st.get("last_tick"),
+            "positions": [{"base": p["base"], "notional": round(p["notional"]), "funding_acc": round(p.get("funding_acc", 0), 2)} for p in st.get("positions", [])]}
