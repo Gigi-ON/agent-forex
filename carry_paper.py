@@ -59,14 +59,14 @@ def resolve_symbols():
         for k, v in ap.items():
             if v.get("wsname") == kb + "/USD":            # spot USD canonique
                 alt = v.get("altname", k); apkey = k; break
-        perp = ("PF_" + kb + "USD").upper()
-        has_perp = perp in perps
-        if alt and has_perp:
+        cands = [("PF_" + kb + "USD").upper(), ("PF_" + b + "USD").upper()]
+        perp = next((c for c in cands if c in perps), None)
+        if alt and perp:
             resolved[b] = {"perp": perp, "spot": alt, "apkey": apkey}
         else:
             why = []
             if not alt: why.append("spot introuvable")
-            if not has_perp: why.append("perp %s absent" % perp)
+            if not perp: why.append("perp absent (%s)" % "/".join(dict.fromkeys(cands)))
             missing.append("%s (%s)" % (b, ", ".join(why)))
     return resolved, missing
 
@@ -86,7 +86,7 @@ def fetch_market():
             missing.append("%s (prix indispo)" % b); continue
         try:
             spot = float(srow["c"][0]); mark = float(t.get("markPrice") or t.get("last"))
-            fr = float(t["fundingRate"])
+            fr = float(t["fundingRate"]) / mark   # Kraken Futures: fundingRate ABSOLU -> relatif = /markPrice
         except Exception:
             missing.append("%s (donnee illisible)" % b); continue
         out[b] = {"funding": fr, "perp": mark, "spot": spot}
@@ -167,7 +167,7 @@ def check():
     for b in US_UNIVERSE:
         if b in mkt:
             m = mkt[b]
-            print("  OK    %-5s perp=%-11s spot=%.4f  funding=%+.5f%%/h" % (b, resolved[b]["perp"], m["spot"], m["funding"] * 100))
+            print("  OK    %-5s perp=%-11s spot=%.4f  funding=%+.1f%%/an" % (b, resolved[b]["perp"], m["spot"], m["funding"] * 8760 * 100))
         else:
             r = next((x for x in (missing + missing2) if x.startswith(b + " ")), b + " (non resolu)")
             print("  FAIL  %s" % r)
