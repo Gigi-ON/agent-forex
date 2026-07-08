@@ -1,0 +1,18 @@
+nohup: ignoring input
+Source atteignable: okx
+  10/40 ok=10 | 14s
+  20/40 ok=19 | 27s
+  30/40 ok=28 | 42s
+  40/40 ok=38 | 58s
+TERMINE: 38 symboles funding multi-annees (okx) dans data/funding_multi
+Venue: okx | frais spot 10bp perp 5bp | 38 symboles
+  10/38, hedgeables=10
+  20/38, hedgeables=20
+  30/38, hedgeables=30
+  38/38, hedgeables=38
+EXEC USDT: 38/38 hedgeables, cout AR moyen 37.4 bp (vs 344 bp Kraken) -> _exec_usdt.json
+Funding multi : 822 periodes x 2 perps | intervalle ~4h | 2026-04-03 08:00:00+00:00 -> 2026-07-04 00:00:00+00:00
+Cout USDT reel par nom : 38 hedgeables, AR moyen 37.4 bp (vs 344 bp Kraken) -> classement cout-conscient
+
+>> VERDICT REGIME : si 2022 (bear) reste positif, l'edge tient hors marche haussier.
+   Si 2022 s'effondre, le carry est un artefact de regime haussier -> pas un edge robuste.

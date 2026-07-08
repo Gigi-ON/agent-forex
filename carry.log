@@ -1,0 +1,44 @@
+nohup: ignoring input
+Perps PF_ tradeables: 300
+  25/300 ok=25 vide=0 err=0 | 10s ETA 111s
+  50/300 ok=50 vide=0 err=0 | 22s ETA 108s
+  75/300 ok=75 vide=0 err=0 | 32s ETA 96s
+  100/300 ok=100 vide=0 err=0 | 42s ETA 84s
+  125/300 ok=125 vide=0 err=0 | 52s ETA 73s
+  150/300 ok=150 vide=0 err=0 | 61s ETA 61s
+  175/300 ok=175 vide=0 err=0 | 71s ETA 51s
+  200/300 ok=200 vide=0 err=0 | 81s ETA 41s
+  225/300 ok=225 vide=0 err=0 | 92s ETA 31s
+  250/300 ok=250 vide=0 err=0 | 101s ETA 20s
+  275/300 ok=275 vide=0 err=0 | 111s ETA 10s
+  300/300 ok=300 vide=0 err=0 | 122s ETA 0s
+TERMINE: 300 parquets funding + _manifest.json dans data/funding
+Matrice funding : 8780 heures x 200 perps (2025-07-02 08:00:00+00:00 -> 2026-07-03 12:00:00+00:00)
+
+-- Carry annualise brut par perp (short permanent), top 10 / bottom 5 --
+  PF_USUALUSD     +145.0 %/an
+  PF_AEVOUSD      +101.9 %/an
+  PF_RSRUSD        +93.4 %/an
+  PF_CVXUSD        +83.8 %/an
+  PF_BBUSD         +80.7 %/an
+  PF_IOTAUSD       +80.7 %/an
+  PF_ARCUSD        +77.4 %/an
+  PF_SUSD          +71.1 %/an
+  PF_SOLVUSD       +70.8 %/an
+  PF_VETUSD        +49.0 %/an
+   ...
+  PF_OGNUSD        -94.2 %/an
+  PF_STEEMUSD      -95.4 %/an
+  PF_POWRUSD       -99.7 %/an
+  PF_RLCUSD       -102.6 %/an
+  PF_STGUSD       -118.7 %/an
+
+-- Short tout l'univers en continu --
+   {'gross_ann_pct': np.float64(-12.1), 'net_ann_pct': np.float64(-19.6), 'hours_pos_pct': 31, 'hours': 8780}
+
+-- Carry selectif (short top-funding, rebalance hebdo/mensuel) --
+  lookback=168h hold=168h -> gross +80.7%/an net +48.4%/an win 75% robuste 6/6 (51 periodes)
+  lookback=168h hold=336h -> gross +60.7%/an net +44.6%/an win 88% robuste 6/6 (25 periodes)
+  lookback=720h hold=720h -> gross +49.6%/an net +42.1%/an win 100% robuste 6/6 (11 periodes)
+
+>> Lire le NET annualise. Si <=0 ou non robuste => carry mange par les frais/regimes.

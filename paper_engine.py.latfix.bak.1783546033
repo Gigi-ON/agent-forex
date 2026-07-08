@@ -586,13 +586,7 @@ class PaperEngine:
                        else pos.pair.replace("/", ""))
                 info = omap.get(ref)
                 if info is not None:
-                    # broker_unreal fiable SEULEMENT si cle = trade id unique (OANDA).
-                    # Alpaca est cle par SYMBOLE -> unrealized = agregat du compte partage
-                    # (faux par-session) -> on retombe sur le calcul interne par-position.
-                    if str(pos.venue).startswith("OANDA"):
-                        pos.broker_unreal = info.get("unrealized")
-                    else:
-                        pos.broker_unreal = None
+                    pos.broker_unreal = info.get("unrealized")
                 else:
                     # le courtier l'a clôturée -> on la booke avec SON PnL réalisé
                     # (repli R au dernier prix si le courtier ne le fournit pas)

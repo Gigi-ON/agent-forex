@@ -1,0 +1,39 @@
+nohup: ignoring input
+
+=== Univers 1H ===
+Matrice : 101386 pas x 120 paires (2013-10-06T21:00:00Z -> 2026-07-03T01:00:00Z)
+  lb= 3 hold= 3 -> gross +31.98bp net +11.98bp net_tot +2384.1% win 55% sharpe 12.96 (19894 periodes)
+  lb= 3 hold= 6 -> gross +38.36bp net +18.36bp net_tot +1823.0% win 56% sharpe 10.27 (9928 periodes)
+  lb= 3 hold=12 -> gross +32.81bp net +12.81bp net_tot +633.6% win 54% sharpe 3.9 (4946 periodes)
+  lb= 6 hold= 3 -> gross +26.44bp net +6.44bp net_tot +1280.5% win 53% sharpe 6.8 (19876 periodes)
+  lb= 6 hold= 6 -> gross +29.80bp net +9.80bp net_tot +973.5% win 53% sharpe 5.67 (9934 periodes)
+  lb= 6 hold=12 -> gross +27.69bp net +7.69bp net_tot +381.6% win 53% sharpe 2.34 (4963 periodes)
+  lb=12 hold= 3 -> gross +19.43bp net -0.57bp net_tot -113.1% win 50% sharpe -0.6 (19872 periodes)
+  lb=12 hold= 6 -> gross +18.77bp net -1.23bp net_tot -122.1% win 50% sharpe -0.71 (9934 periodes)
+  lb=12 hold=12 -> gross +8.41bp net -11.59bp net_tot -576.2% win 49% sharpe -3.46 (4972 periodes)
+  lb=24 hold= 3 -> gross +11.84bp net -8.16bp net_tot -1618.0% win 47% sharpe -8.33 (19838 periodes)
+  lb=24 hold= 6 -> gross +10.19bp net -9.81bp net_tot -973.1% win 48% sharpe -5.49 (9923 periodes)
+  lb=24 hold=12 -> gross +9.30bp net -10.70bp net_tot -531.3% win 50% sharpe -3.12 (4963 periodes)
+
+>> Meilleur 1H : lb=3 hold=6 | net +18.36 bp/periode | sharpe 10.27 | robuste 6/6 epoques
+   par epoque (bp): [29.23, 20.53, 16.41, 17.68, 10.1, 16.21]
+   VERDICT 1H : EDGE PLAUSIBLE
+
+=== Univers 15Min ===
+Matrice : 382382 pas x 120 paires (2013-10-06T21:30:00Z -> 2026-07-03T01:30:00Z)
+  lb= 3 hold= 3 -> gross +16.03bp net -3.97bp net_tot -2669.8% win 46% sharpe -12.22 (67314 periodes)
+  lb= 3 hold= 6 -> gross +19.19bp net -0.81bp net_tot -270.9% win 49% sharpe -1.33 (33544 periodes)
+  lb= 3 hold=12 -> gross +21.20bp net +1.20bp net_tot +200.5% win 50% sharpe 1.04 (16743 periodes)
+  lb= 6 hold= 3 -> gross +14.31bp net -5.69bp net_tot -3820.5% win 45% sharpe -17.27 (67180 periodes)
+  lb= 6 hold= 6 -> gross +17.76bp net -2.24bp net_tot -751.2% win 48% sharpe -3.61 (33565 periodes)
+  lb= 6 hold=12 -> gross +22.19bp net +2.19bp net_tot +365.5% win 50% sharpe 1.9 (16690 periodes)
+  lb=12 hold= 3 -> gross +11.39bp net -8.61bp net_tot -5766.7% win 43% sharpe -25.94 (66999 periodes)
+  lb=12 hold= 6 -> gross +14.26bp net -5.74bp net_tot -1921.1% win 47% sharpe -9.26 (33454 periodes)
+  lb=12 hold=12 -> gross +16.41bp net -3.59bp net_tot -602.1% win 48% sharpe -3.09 (16796 periodes)
+  lb=24 hold= 3 -> gross +9.58bp net -10.42bp net_tot -6958.6% win 42% sharpe -31.25 (66784 periodes)
+  lb=24 hold= 6 -> gross +11.78bp net -8.22bp net_tot -2743.8% win 45% sharpe -13.12 (33392 periodes)
+  lb=24 hold=12 -> gross +13.67bp net -6.33bp net_tot -1062.0% win 48% sharpe -5.42 (16774 periodes)
+
+>> Meilleur 15Min : lb=6 hold=12 | net +2.19 bp/periode | sharpe 1.9 | robuste 2/6 epoques
+   par epoque (bp): [22.76, 2.2, -1.34, -5.58, -3.09, -1.81]
+   VERDICT 15Min : PAS D'EDGE (net<=0 ou non robuste)

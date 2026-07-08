@@ -157,7 +157,7 @@ def health_check():
     except Exception as e:
         checks["forex_pairs"] = "FAIL (" + str(e)[:50] + ")"
 
-    for d, mx in [("funding", 3), ("funding_multi", 3), ("capacity", 3), ("hyperliquid/funding", 3)]:
+    for d, mx in [("funding", 3), ("funding_multi", 3), ("capacity", 3)]:
         files = glob.glob(os.path.join(DATA, d, "*.parquet"))
         if not files:
             checks["data_" + d] = "FAIL (vide)"; continue
@@ -191,7 +191,6 @@ def main():
         "funding_kraken": _run_module("funding_fetch"),
         "funding_multi": _run_module("coinalyze_funding"),
         "capacity": _run_module("capacity_fetch"),
-        "hyperliquid": _run_module("hyperliquid_fetch"),
     }
     verdict = health_check()
     stamp = {"updated": _now().strftime("%Y-%m-%dT%H:%M:%SZ"), "health": verdict,

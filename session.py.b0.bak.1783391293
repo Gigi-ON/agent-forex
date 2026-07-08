@@ -60,7 +60,6 @@ class Session:
     state: SessionState = SessionState.ACTIVE
     realized_pnl: float = 0.0
     trades: int = 0
-    hwm_equity: float = None          # pic d'equity live (realized + latent) de la session
 
     @property
     def equity(self):

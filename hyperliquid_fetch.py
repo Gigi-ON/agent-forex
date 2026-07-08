@@ -61,9 +61,9 @@ def contexts():
     return out
 
 
-def funding_history(coin):
-    """Pagine fundingHistory (horaire) de FROM_MS a maintenant -> [(ts_ms, rate)]."""
-    out = []; start = FROM_MS; now = int(time.time() * 1000)
+def funding_history(coin, since_ms=None):
+    """Pagine fundingHistory (horaire) depuis since_ms (sinon FROM_MS) -> [(ts_ms, rate)]. Incremental."""
+    out = []; start = int(since_ms) if since_ms else FROM_MS; now = int(time.time() * 1000)
     while start < now:
         d = _post({"type": "fundingHistory", "coin": coin, "startTime": start})
         if not d:
@@ -116,13 +116,24 @@ def main():
     depths = {}; catalog = []; t0 = time.time(); shape_shown = False
     for i, coin in enumerate(coins, 1):
         try:
-            rows = funding_history(coin)
+            path = os.path.join(OUT, "funding", "%s.parquet" % coin)
+            since = None; old = None
+            if os.path.exists(path):
+                try:
+                    old = pd.read_parquet(path)
+                    since = int(old["ts_ms"].max()) + 1
+                except Exception:
+                    old = None
+            rows = funding_history(coin, since_ms=since)
             if not shape_shown and rows:
                 print("  (verif shape funding %s : ex. %s)" % (coin, rows[:2]), flush=True); shape_shown = True
-            if rows:
-                df = pd.DataFrame(rows, columns=["ts_ms", "rate"]).drop_duplicates("ts_ms").sort_values("ts_ms")
+            if rows or old is not None:
+                df = pd.DataFrame(rows, columns=["ts_ms", "rate"])
+                if old is not None:
+                    df = pd.concat([old[["ts_ms", "rate"]], df], ignore_index=True)
+                df = df.drop_duplicates("ts_ms").sort_values("ts_ms")
                 df["ts"] = pd.to_datetime(df["ts_ms"], unit="ms", utc=True)
-                df.to_parquet(os.path.join(OUT, "funding", "%s.parquet" % coin))
+                df.to_parquet(path)
                 catalog.append({"coin": coin, "rows": int(len(df)),
                                 "first": str(df["ts"].iloc[0]), "last": str(df["ts"].iloc[-1])})
             dp = depth(coin)

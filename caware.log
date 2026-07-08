@@ -1,0 +1,43 @@
+nohup: ignoring input
+Matrice funding : 8780 heures x 200 perps (2025-07-02 08:00:00+00:00 -> 2026-07-03 12:00:00+00:00)
+
+-- Carry annualise brut par perp (short permanent), top 10 / bottom 5 --
+  PF_USUALUSD     +145.0 %/an
+  PF_AEVOUSD      +101.9 %/an
+  PF_RSRUSD        +93.4 %/an
+  PF_CVXUSD        +83.8 %/an
+  PF_BBUSD         +80.7 %/an
+  PF_IOTAUSD       +80.7 %/an
+  PF_ARCUSD        +77.4 %/an
+  PF_SUSD          +71.1 %/an
+  PF_SOLVUSD       +70.8 %/an
+  PF_VETUSD        +49.0 %/an
+   ...
+  PF_OGNUSD        -94.2 %/an
+  PF_STEEMUSD      -95.4 %/an
+  PF_POWRUSD       -99.7 %/an
+  PF_RLCUSD       -102.6 %/an
+  PF_STGUSD       -118.7 %/an
+
+-- Short tout l'univers en continu --
+   {'gross_ann_pct': np.float64(-12.1), 'net_ann_pct': np.float64(-19.6), 'hours_pos_pct': 31, 'hours': 8780}
+
+-- Carry selectif (short top-funding, rebalance hebdo/mensuel) --
+  lookback=168h hold=168h -> gross +80.7%/an net +48.4%/an win 75% robuste 6/6 (51 periodes)
+  lookback=168h hold=336h -> gross +60.7%/an net +44.6%/an win 88% robuste 6/6 (25 periodes)
+  lookback=720h hold=720h -> gross +49.6%/an net +42.1%/an win 100% robuste 6/6 (11 periodes)
+
+== SOUS-UNIVERS EXECUTABLE (spot Kraken dispo, cout REEL par nom) ==
+   Hedgeables: 242 perps | cout aller-retour moyen: 344.2 bp (vs 62 bp forfait)
+   lookback=168h hold=168h -> gross +79.8%/an net -25.7%/an win 33% robuste 1/6 (51 periodes)
+   lookback=168h hold=336h -> gross +64.4%/an net +14.8%/an win 52% robuste 4/6 (25 periodes)
+   lookback=720h hold=720h -> gross +53.2%/an net +28.6%/an win 64% robuste 4/6 (11 periodes)
+   >> Si le NET reste positif ICI, l'edge est EXECUTABLE (pas juste theorique).
+
+== CORRECTION COUT-CONSCIENTE (classe par funding NET du cout, sous-univers executable) ==
+   lookback=168h hold=168h -> gross +177.5%/an net +79.6%/an win 64% robuste 6/6 (33 periodes)
+   lookback=168h hold=336h -> gross +128.4%/an net +84.7%/an win 88% robuste 6/6 (24 periodes)
+   lookback=720h hold=720h -> gross +64.4%/an net +40.3%/an win 73% robuste 4/6 (11 periodes)
+   >> Compare a la section precedente : si net ET robustesse remontent, la correction aide.
+
+>> Lire le NET annualise. Si <=0 ou non robuste => carry mange par les frais/regimes.

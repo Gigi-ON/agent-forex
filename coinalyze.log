@@ -1,0 +1,35 @@
+nohup: ignoring input
+Symboles perp resolus: 39/40
+TERMINE: 39 symboles funding Coinalyze (daily) | couverture 2020-02-04 00:00:00+00:00 -> 2026-07-04 00:00:00+00:00
+Funding multi : 2343 periodes x 39 perps | intervalle ~24h | 2020-02-04 00:00:00+00:00 -> 2026-07-04 00:00:00+00:00
+Cout USDT reel par nom : 38 hedgeables, AR moyen 37.4 bp (vs 344 bp Kraken) -> classement cout-conscient
+
+== hebdo (lookback=7 hold=7 periodes) : net +645.1%/an global, win 97% ==
+   2020 : net +1269.3%/an  (win 100%, 30 periodes)
+   2021 : net +1844.8%/an  (win 98%, 51 periodes)
+   2022 : net  +216.1%/an  (win 90%, 52 periodes)
+   2023 : net  +335.0%/an  (win 98%, 52 periodes)
+   2024 : net  +524.3%/an  (win 100%, 53 periodes)
+   2025 : net  +199.7%/an  (win 98%, 52 periodes)
+   2026 : net  +168.1%/an  (win 100%, 25 periodes)
+
+== bi-hebdo (lookback=7 hold=14 periodes) : net +608.4%/an global, win 94% ==
+   2020 : net +1333.7%/an  (win 100%, 15 periodes)
+   2021 : net +1633.9%/an  (win 92%, 26 periodes)
+   2022 : net  +187.0%/an  (win 88%, 26 periodes)
+   2023 : net  +328.0%/an  (win 96%, 26 periodes)
+   2024 : net  +510.6%/an  (win 100%, 26 periodes)
+   2025 : net  +164.2%/an  (win 88%, 26 periodes)
+   2026 : net  +175.0%/an  (win 100%, 12 periodes)
+
+== mensuel (lookback=30 hold=30 periodes) : net +565.1%/an global, win 96% ==
+   2020 : net  +977.1%/an  (win 86%, 7 periodes)
+   2021 : net +1562.1%/an  (win 100%, 12 periodes)
+   2022 : net  +175.1%/an  (win 83%, 12 periodes)
+   2023 : net  +336.2%/an  (win 100%, 12 periodes)
+   2024 : net  +487.1%/an  (win 100%, 12 periodes)
+   2025 : net  +232.9%/an  (win 100%, 12 periodes)
+   2026 : net  +148.0%/an  (win 100%, 6 periodes)
+
+>> VERDICT REGIME : si 2022 (bear) reste positif, l'edge tient hors marche haussier.
+   Si 2022 s'effondre, le carry est un artefact de regime haussier -> pas un edge robuste.

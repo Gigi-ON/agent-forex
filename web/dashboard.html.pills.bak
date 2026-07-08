@@ -901,7 +901,6 @@
               <div class="seg" id="wizTrader"><button class="on" data-v="deterministe">Déterministe</button><button data-v="grok">Grok</button><button data-v="hybride">Hybride</button></div></div>
           </div>
           <div class="wizstep" data-step="3" style="display:none">
-            <div id="wizPills" style="margin-bottom:10px"></div>
             <div class="field"><label class="cap">Paire à trader</label><select id="wizPair" class="fld"></select></div>
             <div class="field"><label class="cap">Profil de risque</label>
               <div class="seg" id="wizProfile"><button data-v="reserve">Réservé</button><button class="on" data-v="doux">Doux</button><button data-v="agressif">Agressif</button></div></div>
@@ -1916,38 +1915,7 @@
         if(WIZ.step===3&&!WIZ.pair){ wmsg('Choisis une paire.'); return false; }
         wmsg(''); return true;
       }
-      async function loadPills(){
-        var host=$('wizPills'); if(!host) return;
-        if(WIZ.market!=='crypto'){ host.innerHTML=''; return; }
-        if(!document.getElementById('cpillCss')){ var st=document.createElement('style'); st.id='cpillCss'; st.textContent='.cpill:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.30)!important;box-shadow:0 6px 16px rgba(0,0,0,.38)} .cpill{transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}'; document.head.appendChild(st); }
-        host.innerHTML='<div class="cap" style="margin:2px 0 6px">Chargement du top crypto…</div>';
-        var d; try{ d=await API('/api/top-crypto?n=20'); }catch(e){ host.innerHTML=''; return; }
-        var rows=(d&&d.top)||[]; if(!rows.length){ host.innerHTML=''; return; }
-        var mkt=(d&&d.market)||'range';
-        var clr={haussier:'#2ec16b',baissier:'#ef5350',range:'#8b93a3'};
-        var lbl={haussier:'Marché haussier',baissier:'Marché baissier',range:'Marché en range'};
-        var head='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 8px">'
-          +'<label class="cap" style="margin:0">Cibler une crypto — top 20 · volume · cap · momentum</label>'
-          +'<span style="font-size:12px;font-weight:700;color:'+(clr[mkt]||'#8b93a3')+'">● '+(lbl[mkt]||'Marché en range')+'</span></div>';
-        var pills=rows.map(function(r){
-          var c=clr[r.state]||'#8b93a3';
-          var chg=(r.change_24h>=0?'+':'')+Number(r.change_24h||0).toFixed(1)+'%';
-          var sel=(WIZ.pair===r.symbol);
-          return '<button type="button" class="cpill" data-sym="'+r.symbol+'" '
-            +'style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 12px;border-radius:13px;'
-            +'border:1.5px solid '+(sel?c:'rgba(255,255,255,.12)')+';background:'+(sel?'rgba(46,193,107,.10)':'#141b24')+';color:#e6edf3;cursor:pointer;min-width:96px">'
-            +'<span style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px"><span style="width:7px;height:7px;border-radius:50%;background:'+c+';flex:none"></span>'+r.symbol+'</span>'
-            +'<span style="font-size:11px;color:'+c+';font-weight:600">'+chg+'</span>'
-            +'<span style="font-size:10px;color:#6b7280">vol '+fmtBig(r.volume_24h)+' $</span></button>';
-        }).join('');
-        host.innerHTML=head+'<div style="display:flex;flex-wrap:wrap;gap:8px;max-height:196px;overflow:auto;padding:2px 1px">'+pills+'</div>';
-        host.querySelectorAll('.cpill').forEach(function(b){ b.onclick=function(){
-          WIZ.pair=b.dataset.sym; var sel=$('wizPair');
-          if(sel){ var has=[].some.call(sel.options,function(o){return o.value===WIZ.pair||o.text===WIZ.pair;}); if(!has){ var op=document.createElement('option'); op.text=WIZ.pair; sel.add(op); } sel.value=WIZ.pair; }
-          loadPills();
-        };});
-      }
-      async function onEnter(step){ if(step===3){ await loadPairs(); loadPills(); } if(step===4){ if($('wizMin'))WIZ.min=parseInt($('wizMin').value,10)||60; await loadSuggest(); recap(); } }
+      async function onEnter(step){ if(step===3)await loadPairs(); if(step===4){ if($('wizMin'))WIZ.min=parseInt($('wizMin').value,10)||60; await loadSuggest(); recap(); } }
       $('wizNext').onclick=async function(){ if(!validStep())return; if(WIZ.step<4){ WIZ.step++; show(); await onEnter(WIZ.step); } };
       if($('wizBack'))$('wizBack').onclick=function(){ if(WIZ.step>1){ WIZ.step--; show(); } };
       if($('wizLaunch'))$('wizLaunch').onclick=async function(){

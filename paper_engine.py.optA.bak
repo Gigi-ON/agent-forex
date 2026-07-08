@@ -157,66 +157,15 @@ class PaperEngine:
         return s
 
     def stop_session(self, session_id, market=None, now=None):
-        """Stop = cloture immediate des positions de la session (flatten) + fin de session."""
+        """Stop = clôture immédiate des positions de la session (flatten) + fin de session."""
         now = now or _now()
-        s = self.manager.sessions.get(session_id)
-        live = 0.0
-        if s is not None:
-            live = round(s.realized_pnl + sum(self._pos_unreal(p) for p in self.positions.values() if p.session_id == session_id), 2)
-        ctx = None
-        if s is not None:
-            hwm = getattr(s, "hwm_equity", None)
-            n_open = sum(1 for p in self.positions.values() if p.session_id == session_id)
-            ctx = {
-                "ts": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "session_id": session_id,
-                "intent": ("EMPOCHE" if live > 0 else "STOP"),
-                "instrument": getattr(s, "instrument", None),
-                "mode": getattr(s, "mode", "pratique"),
-                "allocated": s.allocated, "realized_pnl": s.realized_pnl,
-                "live_pnl": live,
-                "hwm_equity": (round(hwm, 2) if hwm is not None else None),
-                "giveback": (round(hwm - live, 2) if hwm is not None else None),
-                "giveback_pct": (round(100.0 * (hwm - live) / hwm, 1) if (hwm and abs(hwm) > 1e-9) else None),
-                "gain_pct_budget": (round(100.0 * live / s.allocated, 2) if s.allocated else None),
-                "duration_min": round((now - s.started).total_seconds() / 60.0, 1),
-                "positions_open": n_open,
-                "green": (live > 0),
-            }
         for pos in list(self.positions.values()):
             if pos.session_id == session_id:
                 m = (market or {}).get(pos.pair)
                 price = float(m["price"]) if (m and m.get("price") is not None) else pos.entry_price
                 self._close(pos, price, "MANUAL", now)
-        self.close_session(session_id, reason="arret manuel")
-        if ctx is not None:
-            self._append_empocher_log(ctx)
+        self.close_session(session_id, reason="arrêt manuel")
         return self.snapshot(now)
-
-    def _append_empocher_log(self, ctx):
-        """Journal comportemental des arrets manuels (empocher/stop) -> data/empocher_log.json."""
-        try:
-            import os as _os, json as _json
-            d = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "data")
-            _os.makedirs(d, exist_ok=True)
-            p = _os.path.join(d, "empocher_log.json")
-            arr = []
-            if _os.path.exists(p):
-                try:
-                    with open(p, "r") as fh:
-                        arr = _json.load(fh)
-                    if not isinstance(arr, list):
-                        arr = []
-                except Exception:
-                    arr = []
-            arr.append(ctx)
-            arr = arr[-2000:]
-            tmp = p + ".tmp"
-            with open(tmp, "w") as fh:
-                _json.dump(arr, fh)
-            _os.replace(tmp, p)
-        except Exception:
-            pass
 
     # -- propositions (manuel / semi-auto / auto) ---------------------------
     def decide(self, pending_id, action, now=None):
@@ -254,10 +203,6 @@ class PaperEngine:
             if _m.get("price") is not None:
                 self.last_price[_pair] = float(_m["price"])
         self._reconcile_broker(now)
-        for _s in self.manager.active:
-            _lp = _s.realized_pnl + sum(self._pos_unreal(_p) for _p in self.positions.values() if _p.session_id == _s.id)
-            _h = getattr(_s, "hwm_equity", None)
-            _s.hwm_equity = round(_lp, 2) if _h is None else round(max(_h, _lp), 2)
 
         if self.running and not self.daily_halted:
             import strategy as _S
@@ -586,13 +531,7 @@ class PaperEngine:
                        else pos.pair.replace("/", ""))
                 info = omap.get(ref)
                 if info is not None:
-                    # broker_unreal fiable SEULEMENT si cle = trade id unique (OANDA).
-                    # Alpaca est cle par SYMBOLE -> unrealized = agregat du compte partage
-                    # (faux par-session) -> on retombe sur le calcul interne par-position.
-                    if str(pos.venue).startswith("OANDA"):
-                        pos.broker_unreal = info.get("unrealized")
-                    else:
-                        pos.broker_unreal = None
+                    pos.broker_unreal = info.get("unrealized")
                 else:
                     # le courtier l'a clôturée -> on la booke avec SON PnL réalisé
                     # (repli R au dernier prix si le courtier ne le fournit pas)
@@ -761,7 +700,6 @@ class PaperEngine:
             "sessions": [{
                 "id": s.id, "allocated": s.allocated, "equity": s.equity,
                 "realized_pnl": s.realized_pnl, "trades": s.trades,
-                "hwm_equity": getattr(s, "hwm_equity", None),
                 "live_pnl": round(s.realized_pnl + sum(self._pos_unreal(p) for p in self.positions.values() if p.session_id == s.id), 2),
                 "tutelle": s.tutelle.value if hasattr(s.tutelle, "value") else s.tutelle,
                 "risk_level": s.risk_level,

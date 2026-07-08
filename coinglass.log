@@ -1,0 +1,48 @@
+nohup: ignoring input
+  interval 8h refuse (Upgrade plan) -> repli 1d
+  ! BTC: Upgrade plan
+  ! ETH: Upgrade plan
+  ! BNB: Upgrade plan
+  ! XRP: Upgrade plan
+  ! ADA: Upgrade plan
+  ! SOL: Upgrade plan
+  ! DOGE: Upgrade plan
+  ! DOT: Upgrade plan
+  ! LTC: Upgrade plan
+  ! LINK: Upgrade plan
+  ! BCH: Upgrade plan
+  ! ATOM: Upgrade plan
+  ! ETC: Upgrade plan
+  ! XLM: Upgrade plan
+  ! TRX: Upgrade plan
+  ! AVAX: Upgrade plan
+  ! UNI: Upgrade plan
+  ! FIL: Upgrade plan
+  ! AAVE: Upgrade plan
+  ! EOS: Upgrade plan
+  ! XTZ: Upgrade plan
+  ! ALGO: Upgrade plan
+  ! THETA: Upgrade plan
+  ! VET: Upgrade plan
+  ! ICP: Upgrade plan
+  ! EGLD: Upgrade plan
+  ! SAND: Upgrade plan
+  ! MANA: Upgrade plan
+  ! CHZ: Upgrade plan
+  ! ENJ: Upgrade plan
+  ! ZEC: Upgrade plan
+  ! DASH: Upgrade plan
+  ! COMP: Upgrade plan
+  ! YFI: Upgrade plan
+  ! SNX: Upgrade plan
+  ! CRV: Upgrade plan
+  ! SUSHI: Upgrade plan
+  ! GRT: Upgrade plan
+  ! NEO: Upgrade plan
+  ! IOTA: Upgrade plan
+TERMINE: 0 symboles funding Coinglass/Binance (interval 1d)
+Funding multi : 822 periodes x 2 perps | intervalle ~4h | 2026-04-03 08:00:00+00:00 -> 2026-07-04 00:00:00+00:00
+Cout USDT reel par nom : 38 hedgeables, AR moyen 37.4 bp (vs 344 bp Kraken) -> classement cout-conscient
+
+>> VERDICT REGIME : si 2022 (bear) reste positif, l'edge tient hors marche haussier.
+   Si 2022 s'effondre, le carry est un artefact de regime haussier -> pas un edge robuste.

@@ -1,0 +1,11 @@
+=== Test d'acces Hyperliquid depuis ce serveur ===
+ACCES OK — 231 perps dans l'univers.
+Univers retenu : top 50 par volume 24h. Ex.: BTC, ETH, HYPE, SOL, LIT, ZEC, XRP, PUMP, NEAR, XPL, SUI, FARTCOIN
+  (verif shape funding BTC : ex. [(1683849600048, -0.0006133368), (1683878400388, -0.000745027)])
+  10/50 | 288s
+  20/50 | 660s
+  ! ETHFI: HTTP Error 429: Too Many Requests
+  30/50 | 959s
+  40/50 | 1298s
+  50/50 | 1622s
+TERMINE : 49 funding + OI + profondeur dans data/hyperliquid | 2023-05-12 00:00:00.048000+00:00 -> 2026-07-06 12:00:00.006000+00:00

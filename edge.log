@@ -1,0 +1,43 @@
+########## ETUDE LARGE (plafond theorique) ##########
+Capacity : 1280 periodes x 39 perps | intervalle ~12h | 2024-10-03 00:00:00+00:00 -> 2026-07-04 12:00:00+00:00
+OI dispo sur 39/39 perps
+
+== Rebalance hebdo ==
+  cap/nom |  capacite tenable $ | net %/an |  pire annee
+    0.1% |            409,196 |  +528.4% |  +421.0% (2024:+1143 2025:+440 2026:+421)
+    0.5% |          2,045,980 |  +522.2% |  +414.8% (2024:+1137 2025:+434 2026:+415)
+    1.0% |          4,091,960 |  +514.4% |  +406.9% (2024:+1129 2025:+426 2026:+407)
+    2.0% |          8,183,920 |  +498.7% |  +391.3% (2024:+1114 2025:+411 2026:+391)
+
+== Rebalance mensuel ==
+  cap/nom |  capacite tenable $ | net %/an |  pire annee
+    0.1% |            219,771 |  +527.7% |  +319.9% (2024:+1217 2025:+459 2026:+320)
+    0.5% |          1,098,854 |  +526.2% |  +318.5% (2024:+1215 2025:+458 2026:+318)
+    1.0% |          2,197,708 |  +524.4% |  +316.6% (2024:+1213 2025:+456 2026:+317)
+    2.0% |          4,395,416 |  +520.7% |  +313.0% (2024:+1210 2025:+452 2026:+313)
+
+>> Lire : capacite $ tenable a chaque plafond, rendement NET realiste, et tenue chaque annee.
+   C'est le chiffre deployable honnete (funding 8h, plafond liquidite, slippage).
+
+########## VERDICT KRAKEN-US (deployable) ##########
+== UNIVERS KRAKEN-US (9 majors) ==
+Perps presents: ADA, AVAX, BTC, DOGE, ETH, LINK, LTC, SOL, XRP
+Periodes: 1280 | intervalle ~12h | 2024-10-03 00:00:00+00:00 -> 2026-07-04 12:00:00+00:00
+
+-- Rebalance hebdo --
+  cap/nom |  capacite tenable $ | net %/an |  pire annee
+    0.1% |            487,998 |  +514.0% |  +278.7% (2024:+1242 2025:+446 2026:+279)
+    0.5% |          2,439,989 |  +507.8% |  +272.5% (2024:+1236 2025:+439 2026:+272)
+    1.0% |          4,879,979 |  +499.9% |  +264.7% (2024:+1228 2025:+432 2026:+265)
+    2.0% |          9,759,957 |  +484.3% |  +249.0% (2024:+1212 2025:+416 2026:+249)
+
+-- Rebalance mensuel --
+  cap/nom |  capacite tenable $ | net %/an |  pire annee
+    0.1% |            467,739 |  +485.9% |  +195.4% (2024:+1211 2025:+420 2026:+195)
+    0.5% |          2,338,696 |  +484.4% |  +194.0% (2024:+1210 2025:+419 2026:+194)
+    1.0% |          4,677,393 |  +482.6% |  +192.1% (2024:+1208 2025:+417 2026:+192)
+    2.0% |          9,354,785 |  +479.0% |  +188.5% (2024:+1204 2025:+413 2026:+188)
+
+>> VERDICT DEPLOYABILITE US : capacite $ tenable + net %/an sur les 9 majors tradables aux US.
+   Si net positif ET pire annee positive a une capacite serieuse -> edge deployable depuis ton VPS via Kraken.
+   Si ca s'effondre (dispersion trop faible sur 9 majors) -> edge reel mais pas capturable ici pour l'instant.
