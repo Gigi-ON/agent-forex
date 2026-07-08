@@ -156,7 +156,7 @@ class PaperEngine:
             self._log("session", "Session #%s reprise" % session_id)
         return s
 
-    def stop_session(self, session_id, market=None, now=None, only_green=False):
+    def stop_session(self, session_id, market=None, now=None):
         """Stop = cloture immediate des positions de la session (flatten) + fin de session."""
         now = now or _now()
         s = self.manager.sessions.get(session_id)
@@ -182,17 +182,13 @@ class PaperEngine:
                 "duration_min": round((now - s.started).total_seconds() / 60.0, 1),
                 "positions_open": n_open,
                 "green": (live > 0),
-                "only_green": only_green,
             }
         for pos in list(self.positions.values()):
             if pos.session_id == session_id:
-                if only_green and self._pos_unreal(pos) <= 0:
-                    continue   # on GARDE les positions perdantes (elles continuent de tourner)
                 m = (market or {}).get(pos.pair)
                 price = float(m["price"]) if (m and m.get("price") is not None) else pos.entry_price
                 self._close(pos, price, "MANUAL", now)
-        if not only_green:
-            self.close_session(session_id, reason="arret manuel")
+        self.close_session(session_id, reason="arret manuel")
         if ctx is not None:
             self._append_empocher_log(ctx)
         return self.snapshot(now)
