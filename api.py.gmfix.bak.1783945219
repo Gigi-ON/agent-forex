@@ -393,13 +393,7 @@ def _gather_market():
         except Exception:
             continue
     # --- crypto (Kraken) pour les sessions crypto actives (24/7) ---
-    _actives = list(_paper.manager.active)
-    try:
-        if _objectif is not None:
-            _actives = _actives + list(_objectif.manager.active)
-    except Exception:
-        pass
-    crypto = set(getattr(ss, "instrument", None) for ss in _actives
+    crypto = set(getattr(ss, "instrument", None) for ss in _paper.manager.active
                  if getattr(ss, "instrument", None) and "/" in (getattr(ss, "instrument", "") or ""))
     if crypto:
         from kraken_data import KrakenData
