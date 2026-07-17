@@ -428,3 +428,189 @@ TERMINE : 50 funding + OI + profondeur dans data/hyperliquid | 2023-05-12 00:00:
 05:09:40     data_capacity        PASS (0.2j)
 05:09:40     data_hyperliquid/funding PASS (0.0j)
 05:09:40  === MAJ terminee en 578s === {"crypto_spot": "ok", "forex": "ok", "funding_kraken": "ok", "funding_multi": "ok", "capacity": "ok", "hyperliquid": "ok"}
+05:00:01  === MAJ centre de donnees : debut ===
+ERR DOGE/USD 15Min -> Could not open Parquet input source '<Buffer>': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.
+ERR ARB/USD 15Min -> Could not open Parquet input source '<Buffer>': Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.
+ERR 1INCH/USD 1D -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Day&start=2025-12-31T00%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 1H -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Hour&start=2025-12-31T23%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 15Min -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=15Min&start=2025-12-31T23%3A45%3A00Z&limit=10000&sort=asc
+Pipeline update terminé : 103 bougies traitées sur 100 cryptos.
+05:03:28  forex: 132 maj, 0 erreurs (44 pairs x 3 grans)
+Perps PF_ tradeables: 299
+  25/299 ok=25 vide=0 err=0 | 12s ETA 134s
+  50/299 ok=50 vide=0 err=0 | 22s ETA 111s
+  75/299 ok=75 vide=0 err=0 | 33s ETA 99s
+  100/299 ok=100 vide=0 err=0 | 43s ETA 86s
+  125/299 ok=125 vide=0 err=0 | 53s ETA 73s
+  150/299 ok=150 vide=0 err=0 | 65s ETA 64s
+  175/299 ok=175 vide=0 err=0 | 75s ETA 53s
+  200/299 ok=200 vide=0 err=0 | 83s ETA 41s
+  225/299 ok=225 vide=0 err=0 | 93s ETA 31s
+  250/299 ok=250 vide=0 err=0 | 103s ETA 20s
+  275/299 ok=275 vide=0 err=0 | 115s ETA 10s
+  299/299 ok=299 vide=0 err=0 | 125s ETA 0s
+TERMINE: 299 parquets funding + _manifest.json dans data/funding
+Symboles perp resolus: 39/40
+TERMINE: 39 symboles funding Coinalyze (daily) | couverture 2020-02-04 00:00:00+00:00 -> 2026-07-14 00:00:00+00:00
+Fetch funding 8h + OI (usd) : 39 symboles, ~640 jours
+TERMINE: 39 symboles (funding 8h + OI) dans data/capacity | 2024-10-12 12:00:00+00:00 -> 2026-07-14 00:00:00+00:00
+=== Test d'acces Hyperliquid depuis ce serveur ===
+ACCES OK — 232 perps dans l'univers.
+Univers retenu : top 50 par volume 24h. Ex.: BTC, ETH, HYPE, SOL, ZEC, LIT, XRP, WLD, CASHCAT, NEAR, PUMP, FARTCOIN
+  (verif shape funding BTC : ex. [(1783922400026, 1.25e-05), (1783926000058, 1.25e-05)])
+  10/50 | 9s
+  20/50 | 19s
+  30/50 | 29s
+  40/50 | 82s
+  50/50 | 92s
+TERMINE : 50 funding + OI + profondeur dans data/hyperliquid | 2023-05-12 00:00:00.048000+00:00 -> 2026-07-14 05:00:00.064000+00:00
+05:09:15  HEALTH: PASS
+05:09:15     api_alpaca           PASS
+05:09:15     api_oanda            PASS
+05:09:15     api_kraken_futures   PASS
+05:09:15     api_coinalyze        PASS
+05:09:15     crypto_pairs         PASS 28 fraiches, 72 archive (non-Alpaca)
+05:09:15     forex_pairs          PASS 44/44
+05:09:15     data_funding         PASS (0.0j)
+05:09:15     data_funding_multi   PASS (0.2j)
+05:09:15     data_capacity        PASS (0.2j)
+05:09:15     data_hyperliquid/funding PASS (0.0j)
+05:09:15  === MAJ terminee en 554s === {"crypto_spot": "ok", "forex": "ok", "funding_kraken": "ok", "funding_multi": "ok", "capacity": "ok", "hyperliquid": "ok"}
+05:00:01  === MAJ centre de donnees : debut ===
+ERR 1INCH/USD 1D -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Day&start=2025-12-31T00%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 1H -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Hour&start=2025-12-31T23%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 15Min -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=15Min&start=2025-12-31T23%3A45%3A00Z&limit=10000&sort=asc
+Pipeline update terminé : 113 bougies traitées sur 100 cryptos.
+05:03:15  forex: 132 maj, 0 erreurs (44 pairs x 3 grans)
+Perps PF_ tradeables: 299
+  25/299 ok=25 vide=0 err=0 | 13s ETA 139s
+  50/299 ok=50 vide=0 err=0 | 23s ETA 113s
+  75/299 ok=75 vide=0 err=0 | 36s ETA 108s
+  100/299 ok=100 vide=0 err=0 | 47s ETA 93s
+  125/299 ok=125 vide=0 err=0 | 59s ETA 82s
+  150/299 ok=150 vide=0 err=0 | 71s ETA 71s
+  175/299 ok=175 vide=0 err=0 | 83s ETA 59s
+  200/299 ok=200 vide=0 err=0 | 94s ETA 46s
+  225/299 ok=225 vide=0 err=0 | 105s ETA 34s
+  250/299 ok=250 vide=0 err=0 | 114s ETA 22s
+  275/299 ok=275 vide=0 err=0 | 126s ETA 11s
+  299/299 ok=299 vide=0 err=0 | 137s ETA 0s
+TERMINE: 299 parquets funding + _manifest.json dans data/funding
+Symboles perp resolus: 39/40
+TERMINE: 39 symboles funding Coinalyze (daily) | couverture 2020-02-04 00:00:00+00:00 -> 2026-07-15 00:00:00+00:00
+Fetch funding 8h + OI (usd) : 39 symboles, ~640 jours
+TERMINE: 39 symboles (funding 8h + OI) dans data/capacity | 2024-10-13 12:00:00+00:00 -> 2026-07-15 00:00:00+00:00
+=== Test d'acces Hyperliquid depuis ce serveur ===
+ACCES OK — 232 perps dans l'univers.
+Univers retenu : top 50 par volume 24h. Ex.: BTC, ETH, HYPE, SOL, ZEC, CASHCAT, LIT, PUMP, XRP, NEAR, SUI, WLD
+  (verif shape funding BTC : ex. [(1784008800074, 1.25e-05), (1784012400044, 1.25e-05)])
+  10/50 | 9s
+  20/50 | 18s
+  30/50 | 27s
+  40/50 | 37s
+  50/50 | 46s
+TERMINE : 50 funding + OI + profondeur dans data/hyperliquid | 2023-05-12 00:00:00.048000+00:00 -> 2026-07-15 05:00:00.066000+00:00
+05:08:29  HEALTH: PASS
+05:08:29     api_alpaca           PASS
+05:08:29     api_oanda            PASS
+05:08:29     api_kraken_futures   PASS
+05:08:29     api_coinalyze        PASS
+05:08:29     crypto_pairs         PASS 28 fraiches, 72 archive (non-Alpaca)
+05:08:29     forex_pairs          PASS 44/44
+05:08:29     data_funding         PASS (0.0j)
+05:08:29     data_funding_multi   PASS (0.2j)
+05:08:29     data_capacity        PASS (0.2j)
+05:08:29     data_hyperliquid/funding PASS (0.0j)
+05:08:29  === MAJ terminee en 508s === {"crypto_spot": "ok", "forex": "ok", "funding_kraken": "ok", "funding_multi": "ok", "capacity": "ok", "hyperliquid": "ok"}
+05:00:01  === MAJ centre de donnees : debut ===
+ERR 1INCH/USD 1D -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Day&start=2025-12-31T00%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 1H -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Hour&start=2025-12-31T23%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 15Min -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=15Min&start=2025-12-31T23%3A45%3A00Z&limit=10000&sort=asc
+Pipeline update terminé : 107 bougies traitées sur 100 cryptos.
+05:03:12  forex: 132 maj, 0 erreurs (44 pairs x 3 grans)
+Perps PF_ tradeables: 299
+  25/299 ok=25 vide=0 err=0 | 19s ETA 210s
+  50/299 ok=50 vide=0 err=0 | 34s ETA 170s
+  75/299 ok=75 vide=0 err=0 | 48s ETA 145s
+  100/299 ok=100 vide=0 err=0 | 65s ETA 130s
+  125/299 ok=125 vide=0 err=0 | 80s ETA 111s
+  150/299 ok=150 vide=0 err=0 | 92s ETA 91s
+  175/299 ok=175 vide=0 err=0 | 115s ETA 82s
+  200/299 ok=200 vide=0 err=0 | 132s ETA 66s
+  225/299 ok=225 vide=0 err=0 | 154s ETA 51s
+  250/299 ok=250 vide=0 err=0 | 175s ETA 34s
+  275/299 ok=275 vide=0 err=0 | 194s ETA 17s
+  299/299 ok=299 vide=0 err=0 | 207s ETA 0s
+TERMINE: 299 parquets funding + _manifest.json dans data/funding
+Symboles perp resolus: 39/40
+TERMINE: 39 symboles funding Coinalyze (daily) | couverture 2020-02-04 00:00:00+00:00 -> 2026-07-16 00:00:00+00:00
+Fetch funding 8h + OI (usd) : 39 symboles, ~640 jours
+TERMINE: 39 symboles (funding 8h + OI) dans data/capacity | 2024-10-14 12:00:00+00:00 -> 2026-07-16 00:00:00+00:00
+=== Test d'acces Hyperliquid depuis ce serveur ===
+ACCES OK — 232 perps dans l'univers.
+Univers retenu : top 50 par volume 24h. Ex.: BTC, ETH, HYPE, SOL, ZEC, CASHCAT, LIT, XRP, PUMP, NEAR, ONDO, kPEPE
+  (verif shape funding BTC : ex. [(1784095200025, 1.25e-05), (1784098800039, 1.25e-05)])
+  10/50 | 9s
+  20/50 | 18s
+  30/50 | 28s
+  40/50 | 43s
+  50/50 | 52s
+TERMINE : 50 funding + OI + profondeur dans data/hyperliquid | 2023-05-12 00:00:00.048000+00:00 -> 2026-07-16 05:00:00.122000+00:00
+05:09:43  HEALTH: PASS
+05:09:43     api_alpaca           PASS
+05:09:43     api_oanda            PASS
+05:09:43     api_kraken_futures   PASS
+05:09:43     api_coinalyze        PASS
+05:09:43     crypto_pairs         PASS 28 fraiches, 72 archive (non-Alpaca)
+05:09:43     forex_pairs          PASS 44/44
+05:09:43     data_funding         PASS (0.0j)
+05:09:43     data_funding_multi   PASS (0.2j)
+05:09:43     data_capacity        PASS (0.2j)
+05:09:43     data_hyperliquid/funding PASS (0.0j)
+05:09:43  === MAJ terminee en 582s === {"crypto_spot": "ok", "forex": "ok", "funding_kraken": "ok", "funding_multi": "ok", "capacity": "ok", "hyperliquid": "ok"}
+05:00:02  === MAJ centre de donnees : debut ===
+ERR 1INCH/USD 1D -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Day&start=2025-12-31T00%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 1H -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=1Hour&start=2025-12-31T23%3A00%3A00Z&limit=10000&sort=asc
+ERR 1INCH/USD 15Min -> 400 Client Error: Bad Request for url: https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=1INCH%2FUSD&timeframe=15Min&start=2025-12-31T23%3A45%3A00Z&limit=10000&sort=asc
+Pipeline update terminé : 107 bougies traitées sur 100 cryptos.
+05:03:17  forex: 132 maj, 0 erreurs (44 pairs x 3 grans)
+Perps PF_ tradeables: 299
+  25/299 ok=25 vide=0 err=0 | 12s ETA 130s
+  50/299 ok=50 vide=0 err=0 | 22s ETA 111s
+  75/299 ok=75 vide=0 err=0 | 33s ETA 99s
+  100/299 ok=100 vide=0 err=0 | 45s ETA 89s
+  125/299 ok=125 vide=0 err=0 | 55s ETA 76s
+  150/299 ok=150 vide=0 err=0 | 65s ETA 65s
+  175/299 ok=175 vide=0 err=0 | 78s ETA 56s
+  200/299 ok=200 vide=0 err=0 | 89s ETA 44s
+  225/299 ok=225 vide=0 err=0 | 100s ETA 33s
+  250/299 ok=250 vide=0 err=0 | 110s ETA 22s
+  275/299 ok=275 vide=0 err=0 | 121s ETA 11s
+  299/299 ok=299 vide=0 err=0 | 131s ETA 0s
+TERMINE: 299 parquets funding + _manifest.json dans data/funding
+Symboles perp resolus: 39/40
+TERMINE: 39 symboles funding Coinalyze (daily) | couverture 2020-02-04 00:00:00+00:00 -> 2026-07-17 00:00:00+00:00
+Fetch funding 8h + OI (usd) : 39 symboles, ~640 jours
+TERMINE: 39 symboles (funding 8h + OI) dans data/capacity | 2024-10-15 12:00:00+00:00 -> 2026-07-17 00:00:00+00:00
+=== Test d'acces Hyperliquid depuis ce serveur ===
+ACCES OK — 232 perps dans l'univers.
+Univers retenu : top 50 par volume 24h. Ex.: BTC, ETH, HYPE, SOL, ZEC, CASHCAT, PUMP, LIT, ONDO, NEAR, XRP, FARTCOIN
+  (verif shape funding BTC : ex. [(1784181600066, 1.25e-05), (1784185200042, 1.25e-05)])
+  10/50 | 9s
+  20/50 | 18s
+  30/50 | 28s
+  40/50 | 38s
+  50/50 | 47s
+TERMINE : 50 funding + OI + profondeur dans data/hyperliquid | 2023-05-12 00:00:00.048000+00:00 -> 2026-07-17 05:00:00.052000+00:00
+05:08:25  HEALTH: PASS
+05:08:25     api_alpaca           PASS
+05:08:25     api_oanda            PASS
+05:08:25     api_kraken_futures   PASS
+05:08:25     api_coinalyze        PASS
+05:08:25     crypto_pairs         PASS 28 fraiches, 72 archive (non-Alpaca)
+05:08:25     forex_pairs          PASS 44/44
+05:08:25     data_funding         PASS (0.0j)
+05:08:25     data_funding_multi   PASS (0.2j)
+05:08:25     data_capacity        PASS (0.2j)
+05:08:25     data_hyperliquid/funding PASS (0.0j)
+05:08:25  === MAJ terminee en 503s === {"crypto_spot": "ok", "forex": "ok", "funding_kraken": "ok", "funding_multi": "ok", "capacity": "ok", "hyperliquid": "ok"}

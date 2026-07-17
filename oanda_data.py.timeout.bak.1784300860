@@ -47,8 +47,7 @@ class OandaData(DataProvider):
                     "d'environnement). Voir .env.example.")
             import oandapyV20
             self._api = oandapyV20.API(access_token=self._token,
-                                       environment=self._env,
-                                       request_params={"timeout": 10})
+                                       environment=self._env)
         return self._api
 
     # -- compte --------------------------------------------------------------
